@@ -1,3 +1,4 @@
+
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -5,7 +6,7 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local Lib = {}
-Lib.Version = "6.4.0"
+Lib.Version = "6.5.0"
 Lib.Windows = {}
 Lib._watermarks = {}
 
@@ -83,6 +84,154 @@ local function safeCall(callback, ...)
 	end
 end
 
+local ControlStates = setmetatable({}, { __mode = "k" })
+
+local function createControlState(instance, kind, callback)
+	local listeners = {}
+	if type(callback) == "function" then
+		table.insert(listeners, callback)
+	end
+
+	local state = {
+		instance = instance,
+		kind = kind,
+		listeners = listeners,
+		fire = function(...)
+			for _, listener in ipairs(listeners) do
+				safeCall(listener, ...)
+			end
+		end,
+		addListener = function(fn)
+			if type(fn) == "function" then
+				table.insert(listeners, fn)
+			end
+		end,
+		get = nil,
+		set = nil,
+		_destroy = nil
+	}
+
+	ControlStates[instance] = state
+	return state
+end
+
+local function createControlAPI(instance)
+	local state = ControlStates[instance]
+	if not state then
+		return instance
+	end
+
+	local api = {}
+	api.Instance = instance
+	api._instance = instance
+	api.Type = state.kind or instance.ClassName
+
+	api.Set = function(a, b, c)
+		local value, fire
+		if a == api then
+			value, fire = b, c
+		else
+			value, fire = a, b
+		end
+		if state.set then
+			state.set(value, fire ~= false)
+		end
+		return api
+	end
+
+	api.Get = function()
+		if state.get then
+			return state.get()
+		end
+		return nil
+	end
+
+	api.SetValue = api.Set
+	api.GetValue = api.Get
+	api.SetFloat = api.Set
+	api.GetFloat = api.Get
+
+	api.OnChanged = function(a, b)
+		local fn
+		if a == api then
+			fn = b
+		else
+			fn = a
+		end
+		if state.addListener then
+			state.addListener(fn)
+		end
+		return api
+	end
+
+	api.Changed = api.OnChanged
+	api.OnChange = api.OnChanged
+
+	api.Destroy = function()
+		if state._destroy then
+			pcall(state._destroy)
+		end
+		if instance and instance.Parent then
+			instance:Destroy()
+		end
+	end
+
+	if state.kind == "Button" then
+		api.Fire = function()
+			state.fire()
+		end
+	elseif state.kind == "Keybind" then
+		api.SetKey = api.Set
+		api.GetKey = api.Get
+	elseif state.kind == "Toggle" then
+		api.Toggle = function()
+			api.Set(not api.Get())
+		end
+	elseif state.kind == "Textbox" then
+		api.SetText = api.Set
+		api.GetText = api.Get
+	elseif state.kind == "Dropdown" then
+		api.SetOption = api.Set
+		api.GetOption = api.Get
+	end
+
+	return setmetatable(api, {
+		__index = function(_, key)
+			local value = instance[key]
+			if type(value) == "function" then
+				return function(_, ...)
+					return value(instance, ...)
+				end
+			end
+			return value
+		end,
+		__newindex = function(_, key, value)
+			instance[key] = value
+		end
+	})
+end
+
+local function getControlParent(parent)
+	if type(parent) == "table" then
+		if parent._controlHost then
+			return parent._controlHost
+		end
+		if parent._host then
+			return parent._host
+		end
+		if parent._page then
+			return parent._page
+		end
+		if parent.Page then
+			return parent.Page
+		end
+		if parent.Instance then
+			return parent.Instance
+		end
+	end
+	return parent
+end
+
 local function getShared(create)
 	local environment
 	local ok, value = pcall(function()
@@ -111,6 +260,9 @@ local function getShared(create)
 end
 
 local function getPageFrom(object)
+	if type(object) == "table" then
+		object = getControlParent(object)
+	end
 	local current = object
 	while current do
 		if current:IsA("ScrollingFrame") and current:GetAttribute("MikuPage") then
@@ -150,6 +302,7 @@ local function refreshPage(page)
 end
 
 local function resolveHost(parent)
+	parent = getControlParent(parent)
 	if not parent then
 		return nil
 	end
@@ -183,6 +336,297 @@ local function formatValue(value)
 	end
 	return string.format("%.2f", value)
 end
+
+local function isConfigTable(value)
+	return type(value) == "table" and not typeof(value) == "Instance"
+end
+
+local function normalizeKey(value)
+	if value == nil or value == false then
+		return nil
+	end
+	if typeof(value) == "EnumItem" then
+		if value.EnumType == Enum.KeyCode then
+			return value
+		end
+		return nil
+	end
+	if type(value) == "number" then
+		local ok, key = pcall(function()
+			return Enum.KeyCode:FromValue(value)
+		end)
+		if ok and key and key ~= Enum.KeyCode.Unknown then
+			return key
+		end
+		return nil
+	end
+	if type(value) == "string" then
+		local cleaned = value:gsub("Enum.KeyCode%.", ""):gsub("Enum.KeyCode.", "")
+		local key = Enum.KeyCode[cleaned]
+		if key and typeof(key) == "EnumItem" then
+			return key
+		end
+		local number = tonumber(cleaned)
+		if number then
+			local ok, keyFromNumber = pcall(function()
+				return Enum.KeyCode:FromValue(number)
+			end)
+			if ok and keyFromNumber and keyFromNumber ~= Enum.KeyCode.Unknown then
+				return keyFromNumber
+			end
+		end
+	end
+	return nil
+end
+
+local function parseToggleArgs(a, b, c)
+	if isConfigTable(a) then
+		local cfg = a
+		local text = cfg.Text or cfg.Name or cfg.Title or cfg.Label or "Toggle"
+		local default = cfg.Default
+		if default == nil then default = cfg.Value end
+		if default == nil then default = cfg.Enabled end
+		local callback = cfg.Callback or cfg.Changed or cfg.OnChanged or cfg.OnChange
+		return text, default == true, callback, cfg
+	end
+
+	local text = a or "Toggle"
+	local default = b
+	local callback = c
+
+	if type(b) == "function" and c == nil then
+		callback = b
+		default = false
+	end
+
+	return text, default == true, callback, nil
+end
+
+local function parseSliderArgs(a, b, c, d, e)
+	if isConfigTable(a) then
+		local cfg = a
+		local text = cfg.Text or cfg.Name or cfg.Title or cfg.Label or "Slider"
+		local min = tonumber(cfg.Min or cfg.Minimum or cfg.MinValue or cfg.MinimumValue or 0) or 0
+		local max = tonumber(cfg.Max or cfg.Maximum or cfg.MaxValue or cfg.MaximumValue or 100) or 100
+		local default = cfg.Default
+		if default == nil then default = cfg.Value end
+		if default == nil then default = min end
+		local callback = cfg.Callback or cfg.Changed or cfg.OnChanged or cfg.OnChange
+		return text, min, max, default, callback, cfg
+	end
+
+	local text = a or "Slider"
+	local minValue = tonumber(b) or 0
+	local maxValue = tonumber(c) or 100
+	local defaultValue
+	local callback
+
+	if type(d) == "function" then
+		defaultValue = minValue
+		callback = d
+	else
+		defaultValue = d
+		if type(e) == "function" then
+			callback = e
+		end
+	end
+
+	if defaultValue == nil then
+		defaultValue = minValue
+	end
+
+	return text, minValue, maxValue, defaultValue, callback, nil
+end
+
+local function parseTextBoxArgs(a, b, c, d)
+	if isConfigTable(a) then
+		local cfg = a
+		local text = cfg.Text or cfg.Name or cfg.Title or cfg.Label or "TextBox"
+		local placeholder = cfg.Placeholder or cfg.PlaceholderText or "Digite"
+		local default = cfg.Default
+		if default == nil then default = cfg.Value end
+		if default == nil then default = cfg.TextValue end
+		if default == nil then default = "" end
+		local callback = cfg.Callback or cfg.Changed or cfg.OnChanged or cfg.OnChange
+		return text, placeholder, default, callback, cfg
+	end
+
+	local text = a or "TextBox"
+	local placeholder = b
+	local default = c
+	local callback = d
+
+	if type(b) == "function" and c == nil then
+		callback = b
+		placeholder = "Digite"
+		default = ""
+	elseif type(c) == "function" and d == nil then
+		if type(b) == "string" then
+			placeholder = b
+			default = ""
+		else
+			default = b
+			placeholder = "Digite"
+		end
+		callback = c
+	end
+
+	if type(placeholder) ~= "string" then
+		placeholder = "Digite"
+	end
+
+	if default == nil then
+		default = ""
+	end
+
+	return text, placeholder, default, callback, nil
+end
+
+local function parseDropdownArgs(a, b, c, d)
+	if isConfigTable(a) then
+		local cfg = a
+		local text = cfg.Text or cfg.Name or cfg.Title or "Dropdown"
+		local options = cfg.Options or cfg.Items or {}
+		local default = cfg.Default
+		if default == nil then default = cfg.Value end
+		if default == nil then default = cfg.Selected end
+		local callback = cfg.Callback or cfg.Changed or cfg.OnChanged or cfg.OnChange
+		return text, options, default, callback, cfg
+	end
+
+	local text = a or "Dropdown"
+	local options = b
+	local default = c
+	local callback = d
+
+	if type(c) == "function" and d == nil then
+		callback = c
+		default = nil
+	end
+
+	return text, options, default, callback, nil
+end
+
+local function parseButtonArgs(a, b)
+	if isConfigTable(a) then
+		local cfg = a
+		local text = cfg.Text or cfg.Name or cfg.Title or "Botão"
+		local callback = cfg.Callback or cfg.Clicked or cfg.OnClick or cfg.Fire
+		return text, callback, cfg
+	end
+	if type(a) == "function" then
+		return "Botão", a, nil
+	end
+	return a or "Botão", b, nil
+end
+
+local function parseKeybindArgs(a, b, c)
+	if isConfigTable(a) then
+		local cfg = a
+		local text = cfg.Text or cfg.Name or cfg.Title or cfg.Label or "Keybind"
+		local default = cfg.Default
+		if default == nil then default = cfg.Value end
+		if default == nil then default = cfg.Key end
+		if default == nil then default = cfg.Keybind end
+		local callback = cfg.Callback or cfg.Changed or cfg.OnChanged or cfg.OnChange
+		return text, default, callback, cfg
+	end
+
+	local text = a or "Keybind"
+	local default = b
+	local callback = c
+
+	if type(b) == "function" and c == nil then
+		callback = b
+		default = nil
+	end
+
+	return text, default, callback, nil
+end
+
+local ContainerMethods = {}
+
+function ContainerMethods:AddToggle(...)
+	return Lib:AddToggle(self, ...)
+end
+
+function ContainerMethods:AddSlider(...)
+	return Lib:AddSlider(self, ...)
+end
+
+function ContainerMethods:AddButton(...)
+	return Lib:AddButton(self, ...)
+end
+
+function ContainerMethods:AddTextBox(...)
+	return Lib:AddTextBox(self, ...)
+end
+
+function ContainerMethods:AddDropdown(...)
+	return Lib:AddDropdown(self, ...)
+end
+
+function ContainerMethods:AddKeybind(...)
+	return Lib:AddKeybind(self, ...)
+end
+
+function ContainerMethods:AddLabel(...)
+	return Lib:AddLabel(self, ...)
+end
+
+function ContainerMethods:AddSection(...)
+	return Lib:AddSection(self, ...)
+end
+
+function ContainerMethods:AddDivider(...)
+	return Lib:AddDivider(self, ...)
+end
+
+function ContainerMethods:AddBox(...)
+	return Lib:AddBox(self, ...)
+end
+
+ContainerMethods.CreateToggle = ContainerMethods.AddToggle
+ContainerMethods.CreateSlider = ContainerMethods.AddSlider
+ContainerMethods.CreateButton = ContainerMethods.AddButton
+ContainerMethods.CreateTextBox = ContainerMethods.AddTextBox
+ContainerMethods.CreateTextbox = ContainerMethods.AddTextBox
+ContainerMethods.CreateDropdown = ContainerMethods.AddDropdown
+ContainerMethods.CreateKeybind = ContainerMethods.AddKeybind
+ContainerMethods.CreateKeyBind = ContainerMethods.AddKeybind
+ContainerMethods.CreateKey = ContainerMethods.AddKeybind
+ContainerMethods.CreateLabel = ContainerMethods.AddLabel
+ContainerMethods.CreateSection = ContainerMethods.AddSection
+ContainerMethods.CreateDivider = ContainerMethods.AddDivider
+ContainerMethods.CreateBox = ContainerMethods.AddBox
+
+local ContainerMeta = {
+	__index = function(self, key)
+		local method = ContainerMethods[key]
+		if method then
+			return method
+		end
+
+		local host = rawget(self, "_host") or rawget(self, "_page")
+		if host then
+			local value = host[key]
+			if type(value) == "function" then
+				return function(_, ...)
+					return value(host, ...)
+				end
+			end
+			return value
+		end
+	end,
+	__newindex = function(self, key, value)
+		local host = rawget(self, "_host") or rawget(self, "_page")
+		if host then
+			host[key] = value
+		else
+			rawset(self, key, value)
+		end
+	end
+}
 
 function Lib.newDraggable(target, handle, isLocked)
 	local dragging = false
@@ -451,22 +895,39 @@ end
 
 function Window:SelectTab(target)
 	local entry
-	if type(target) == "table" and target.Button and target.Page then
-		entry = target
-	else
+
+	if type(target) == "table" then
 		for _, item in ipairs(self._tabs) do
-			if item == target or item.Name == target or item.Button == target or item.Page == target or item.Button.Name == target or item.Page.Name == target then
+			if item == target or item.Object == target or item.Page == target.Page or item.Button == target.Button then
 				entry = item
 				break
 			end
 		end
-		if not entry and type(target) == "number" then
-			entry = self._tabs[target]
+	end
+
+	if not entry then
+		for _, item in ipairs(self._tabs) do
+			if item == target
+				or item.Name == target
+				or item.Button == target
+				or item.Page == target
+				or item.Object == target
+				or item.Button.Name == target
+				or item.Page.Name == target then
+				entry = item
+				break
+			end
 		end
 	end
+
+	if not entry and type(target) == "number" then
+		entry = self._tabs[target]
+	end
+
 	if not entry then
 		return
 	end
+
 	for _, item in ipairs(self._tabs) do
 		local active = item == entry
 		item.Active = active
@@ -482,12 +943,22 @@ function Window:SelectTab(target)
 			itemStroke.Transparency = active and 0.35 or 0.45
 		end
 	end
+
 	self._activeTab = entry.Page
 	refreshPage(entry.Page)
 end
 
 function Window:GetActiveTab()
 	return self._activeTab
+end
+
+function Window:GetActiveTabObject()
+	for _, entry in ipairs(self._tabs) do
+		if entry.Page == self._activeTab then
+			return entry.Object
+		end
+	end
+	return nil
 end
 
 function Window:CreateTab(name)
@@ -510,6 +981,7 @@ function Window:CreateTab(name)
 		ClipsDescendants = true
 	}, self._content)
 	page:SetAttribute("MikuPage", true)
+
 	local holder = make("Frame", {
 		Name = "Holder",
 		Position = UDim2.fromOffset(18, 16),
@@ -518,12 +990,14 @@ function Window:CreateTab(name)
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0
 	}, page)
+
 	make("UIListLayout", {
 		Padding = UDim.new(0, 8),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		HorizontalAlignment = Enum.HorizontalAlignment.Left,
 		VerticalAlignment = Enum.VerticalAlignment.Top
 	}, holder)
+
 	local tabButton = make("TextButton", {
 		Name = name .. "Tab",
 		Size = UDim2.new(1, 0, 0, 42),
@@ -533,8 +1007,10 @@ function Window:CreateTab(name)
 		Text = "",
 		BorderSizePixel = 0
 	}, self._tabList)
+
 	corner(tabButton, 9)
 	stroke(tabButton, Theme.Stroke, 0.45)
+
 	local indicator = make("Frame", {
 		Name = "Indicator",
 		Size = UDim2.fromOffset(3, 20),
@@ -543,7 +1019,9 @@ function Window:CreateTab(name)
 		BorderSizePixel = 0,
 		Visible = false
 	}, tabButton)
+
 	corner(indicator, 2)
+
 	local label = make("TextLabel", {
 		Name = "Label",
 		Position = UDim2.fromOffset(20, 0),
@@ -557,6 +1035,7 @@ function Window:CreateTab(name)
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		BorderSizePixel = 0
 	}, tabButton)
+
 	local entry = {
 		Name = name,
 		Button = tabButton,
@@ -565,29 +1044,52 @@ function Window:CreateTab(name)
 		Label = label,
 		Active = false
 	}
+
 	table.insert(self._tabs, entry)
+
 	tabButton.MouseEnter:Connect(function()
 		if not entry.Active then
 			tabButton.BackgroundColor3 = Theme.SurfaceHi
 			tabButton.BackgroundTransparency = 0.42
 		end
 	end)
+
 	tabButton.MouseLeave:Connect(function()
 		if not entry.Active then
 			tabButton.BackgroundColor3 = Theme.SurfaceAlt
 			tabButton.BackgroundTransparency = 0.55
 		end
 	end)
+
 	tabButton.MouseButton1Click:Connect(function()
 		if not self._destroyed then
 			self:SelectTab(entry)
 		end
 	end)
+
 	if not self._activeTab then
 		self:SelectTab(entry)
 	end
+
 	refreshPage(page)
-	return page, tabButton
+
+	local tabObject = setmetatable({
+		_controlHost = page,
+		_page = page,
+		_button = tabButton,
+		Page = page,
+		Button = tabButton,
+		Entry = entry,
+		Name = name
+	}, ContainerMeta)
+
+	entry.Object = tabObject
+
+	return tabObject, tabButton
+end
+
+function Window:AddTab(name)
+	return self:CreateTab(name)
 end
 
 function Window:Notify(title, text, duration)
@@ -623,32 +1125,169 @@ function Window:Destroy()
 	if self._destroyed then
 		return
 	end
+
 	self._destroyed = true
 	self._visible = false
+
+	if self._resizeApi then
+		pcall(function()
+			self._resizeApi.Destroy()
+		end)
+		self._resizeApi = nil
+	end
+
 	if self._dragApi then
 		pcall(function()
 			self._dragApi.Destroy()
 		end)
 		self._dragApi = nil
 	end
+
 	if self._keybindConnection then
 		self._keybindConnection:Disconnect()
 		self._keybindConnection = nil
 	end
+
 	self:_cancelTweens()
+
 	for index = #Lib.Windows, 1, -1 do
 		if Lib.Windows[index] == self then
 			table.remove(Lib.Windows, index)
 		end
 	end
+
 	local sharedTable = getShared(false)
+
 	if sharedTable and sharedTable.MikuLibInstance == self then
 		sharedTable.MikuLibInstance = nil
 	end
+
 	if self._screenGui then
 		self._screenGui:Destroy()
 		self._screenGui = nil
 	end
+end
+
+function Lib.newResize(target, callback)
+	local dragging = false
+	local startMouse
+	local startSize
+	local moveConnection
+	local endConnection
+
+	local handle = Instance.new("TextButton")
+	handle.Name = "ResizeHandle"
+	handle.Parent = target
+	handle.AnchorPoint = Vector2.new(1, 1)
+	handle.Position = UDim2.new(1, -4, 1, -4)
+	handle.Size = UDim2.fromOffset(30, 30)
+	handle.BackgroundColor3 = Theme.Bg
+	handle.BackgroundTransparency = 0.1
+	handle.BorderSizePixel = 0
+	handle.Text = "⤡"
+	handle.TextColor3 = Theme.TextDim
+	handle.TextSize = 22
+	handle.Font = Enum.Font.GothamBold
+	handle.AutoButtonColor = false
+	handle.Active = true
+	handle.Selectable = false
+	handle.ZIndex = 999
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 7)
+	corner.Parent = handle
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Theme.Accent
+	stroke.Transparency = 0.55
+	stroke.Thickness = 1
+	stroke.Parent = handle
+
+	local function stop()
+		dragging = false
+
+		if moveConnection then
+			moveConnection:Disconnect()
+			moveConnection = nil
+		end
+
+		if endConnection then
+			endConnection:Disconnect()
+			endConnection = nil
+		end
+	end
+
+	handle.MouseEnter:Connect(function()
+		TweenService:Create(handle, Fast, {
+			TextColor3 = Theme.Accent,
+			BackgroundTransparency = 0
+		}):Play()
+	end)
+
+	handle.MouseLeave:Connect(function()
+		if not dragging then
+			TweenService:Create(handle, Fast, {
+				TextColor3 = Theme.TextDim,
+				BackgroundTransparency = 0.1
+			}):Play()
+		end
+	end)
+
+	handle.InputBegan:Connect(function(input)
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1
+			and input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+
+		stop()
+
+		dragging = true
+		startMouse = UserInputService:GetMouseLocation()
+		startSize = target.AbsoluteSize
+
+		moveConnection = UserInputService.InputChanged:Connect(function(changed)
+			if not dragging then
+				return
+			end
+
+			if changed.UserInputType ~= Enum.UserInputType.MouseMovement
+				and changed.UserInputType ~= Enum.UserInputType.Touch then
+				return
+			end
+
+			local mouse = UserInputService:GetMouseLocation()
+			local delta = mouse - startMouse
+			local viewport = getViewport()
+
+			local maxWidth = math.max(320, viewport.X - 40)
+			local maxHeight = math.max(240, viewport.Y - 40)
+			local minWidth = math.min(360, maxWidth)
+			local minHeight = math.min(240, maxHeight)
+
+			local width = math.clamp(startSize.X + delta.X, minWidth, maxWidth)
+			local height = math.clamp(startSize.Y + delta.Y, minHeight, maxHeight)
+
+			target.Size = UDim2.fromOffset(width, height)
+
+			if callback then
+				callback(width, height)
+			end
+		end)
+
+		endConnection = UserInputService.InputEnded:Connect(function(changed)
+			if changed.UserInputType == Enum.UserInputType.MouseButton1
+				or changed.UserInputType == Enum.UserInputType.Touch then
+				stop()
+			end
+		end)
+	end)
+
+	return {
+		Destroy = function()
+			stop()
+			handle:Destroy()
+		end
+	}
 end
 
 function Lib:CreateWindow(config)
@@ -946,14 +1585,31 @@ function Lib:CreateWindow(config)
 		ClipsDescendants = true
 	}, root)
 	self._content = content
+
+	self._resizeApi = Lib.newResize(wrapper, function(width, height)
+		if self._destroyed then
+			return
+		end
+
+		self._baseSize = Vector2.new(width, height)
+
+		for _, entry in ipairs(self._tabs) do
+			refreshPage(entry.Page)
+		end
+
+		self:ClampPosition()
+	end)
+
 	self:SetTitle(config.Title or "MikuLib", config.Subtitle or ("v" .. Lib.Version))
 	self:SetProfile({
 		Name = LocalPlayer.DisplayName or LocalPlayer.Name,
 		Tag = "@" .. LocalPlayer.Name
 	})
+
 	if type(config.Profile) == "table" then
 		self:SetProfile(config.Profile)
 	end
+
 	task.spawn(function()
 		local ok, image = pcall(function()
 			return Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
@@ -962,12 +1618,14 @@ function Lib:CreateWindow(config)
 			self._avatar.Image = image
 		end
 	end)
+
 	local keybind = config.Keybind
 	if keybind == nil then
 		keybind = Enum.KeyCode.RightControl
 	end
 	self:SetKeybind(keybind)
 	table.insert(Lib.Windows, self)
+
 	local startVisible = config.StartVisible
 	if startVisible == nil then
 		startVisible = config.Visible
@@ -975,6 +1633,7 @@ function Lib:CreateWindow(config)
 	if startVisible == nil then
 		startVisible = true
 	end
+
 	if startVisible then
 		self:Open()
 	else
@@ -982,13 +1641,21 @@ function Lib:CreateWindow(config)
 		self._root.GroupTransparency = 1
 		self._wrapper.Visible = false
 	end
+
 	if sharedTable then
 		sharedTable.MikuLibInstance = self
 	end
+
 	return self
 end
 
-function Lib:CreateSection(parent, text)
+function Lib:CreateSection(parent, a)
+	local text = a
+	if isConfigTable(a) then
+		local cfg = a
+		text = cfg.Text or cfg.Name or cfg.Title or "Seção"
+	end
+
 	local section, page = prepareControl(parent, 26, "Frame")
 	local label = make("TextLabel", {
 		Name = "Title",
@@ -1002,6 +1669,7 @@ function Lib:CreateSection(parent, text)
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		BorderSizePixel = 0
 	}, section)
+	label.Name = "Title"
 	make("Frame", {
 		Name = "Line",
 		Position = UDim2.new(0, 0, 1, -1),
@@ -1015,6 +1683,11 @@ function Lib:CreateSection(parent, text)
 end
 
 function Lib:CreateLabel(parent, text)
+	if isConfigTable(text) then
+		local cfg = text
+		text = cfg.Text or cfg.Name or cfg.Title or ""
+	end
+
 	local label, page = prepareControl(parent, 20, "TextLabel")
 	label.Text = tostring(text or "")
 	label.Font = Enum.Font.Gotham
@@ -1037,7 +1710,9 @@ function Lib:CreateDivider(parent)
 	return divider
 end
 
-function Lib:CreateButton(parent, text, callback)
+function Lib:CreateButton(parent, a, b)
+	local text, callback = parseButtonArgs(a, b)
+
 	local button, page = prepareControl(parent, 38, "TextButton")
 	button.BackgroundColor3 = Theme.SurfaceAlt
 	button.BackgroundTransparency = 0.25
@@ -1048,30 +1723,34 @@ function Lib:CreateButton(parent, text, callback)
 	button.AutoButtonColor = false
 	corner(button, 9)
 	stroke(button, Theme.Stroke, 0.4)
+
+	local state = createControlState(button, "Button", callback)
+
 	button.MouseEnter:Connect(function()
 		TweenService:Create(button, Fast, {
 			BackgroundColor3 = Theme.SurfaceHi,
 			BackgroundTransparency = 0.12
 		}):Play()
 	end)
+
 	button.MouseLeave:Connect(function()
 		TweenService:Create(button, Fast, {
 			BackgroundColor3 = Theme.SurfaceAlt,
 			BackgroundTransparency = 0.25
 		}):Play()
 	end)
+
 	button.MouseButton1Click:Connect(function()
-		safeCall(callback)
+		state.fire()
 	end)
+
 	refreshPage(page)
 	return button
 end
 
-function Lib:CreateToggle(parent, text, default, callback)
-	if type(default) == "function" and callback == nil then
-		callback = default
-		default = false
-	end
+function Lib:CreateToggle(parent, a, b, c)
+	local text, default, callback = parseToggleArgs(a, b, c)
+
 	local row, page = prepareControl(parent, 42, "TextButton")
 	row.BackgroundColor3 = Theme.SurfaceAlt
 	row.BackgroundTransparency = 1
@@ -1079,6 +1758,7 @@ function Lib:CreateToggle(parent, text, default, callback)
 	row.AutoButtonColor = false
 	row.BorderSizePixel = 0
 	corner(row, 9)
+
 	local label = make("TextLabel", {
 		Name = "Label",
 		Position = UDim2.fromOffset(12, 0),
@@ -1092,6 +1772,7 @@ function Lib:CreateToggle(parent, text, default, callback)
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		BorderSizePixel = 0
 	}, row)
+
 	local track = make("Frame", {
 		Name = "Track",
 		Position = UDim2.new(1, -52, 0.5, -11),
@@ -1101,6 +1782,7 @@ function Lib:CreateToggle(parent, text, default, callback)
 	}, row)
 	corner(track, 11)
 	stroke(track, Theme.Stroke, 0.5)
+
 	local knob = make("Frame", {
 		Name = "Knob",
 		Position = UDim2.new(0, 3, 0.5, 0),
@@ -1111,10 +1793,14 @@ function Lib:CreateToggle(parent, text, default, callback)
 		Active = false
 	}, track)
 	corner(knob, 8)
+
 	local active = default == true
 	row:SetAttribute("MikuValue", active)
-	local function apply(state, fire)
-		active = state
+
+	local state = createControlState(row, "Toggle", callback)
+
+	local function apply(enabled, fire)
+		active = enabled
 		row:SetAttribute("MikuValue", active)
 		TweenService:Create(track, Fast, {
 			BackgroundColor3 = active and Theme.Accent or Theme.SurfaceHi,
@@ -1124,33 +1810,44 @@ function Lib:CreateToggle(parent, text, default, callback)
 			Position = active and UDim2.new(1, -19, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)
 		}):Play()
 		if fire then
-			safeCall(callback, active)
+			state.fire(active)
 		end
 	end
+
+	state.get = function()
+		return active
+	end
+
+	state.set = function(value, fire)
+		apply(value == true, fire ~= false)
+	end
+
 	row.MouseEnter:Connect(function()
 		TweenService:Create(row, Fast, {
 			BackgroundTransparency = 0.82
 		}):Play()
 	end)
+
 	row.MouseLeave:Connect(function()
 		TweenService:Create(row, Fast, {
 			BackgroundTransparency = 1
 		}):Play()
 	end)
+
 	row.MouseButton1Click:Connect(function()
 		apply(not active, true)
 	end)
+
 	apply(active, false)
 	refreshPage(page)
 	return row
 end
 
-function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callback)
-	if type(defaultValue) == "function" and callback == nil then
-		callback = defaultValue
-		defaultValue = minValue
-	end
+function Lib:CreateSlider(parent, a, b, c, d, e)
+	local text, minValue, maxValue, defaultValue, callback = parseSliderArgs(a, b, c, d, e)
+
 	local frame, page = prepareControl(parent, 52, "Frame")
+
 	local label = make("TextLabel", {
 		Name = "Label",
 		Position = UDim2.fromOffset(0, 0),
@@ -1164,6 +1861,7 @@ function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callba
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		BorderSizePixel = 0
 	}, frame)
+
 	local valueLabel = make("TextLabel", {
 		Name = "Value",
 		Position = UDim2.new(1, -60, 0, 0),
@@ -1176,6 +1874,7 @@ function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callba
 		TextXAlignment = Enum.TextXAlignment.Right,
 		BorderSizePixel = 0
 	}, frame)
+
 	local track = make("TextButton", {
 		Name = "Track",
 		Position = UDim2.fromOffset(0, 32),
@@ -1186,6 +1885,7 @@ function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callba
 		BorderSizePixel = 0
 	}, frame)
 	corner(track, 4)
+
 	local fill = make("Frame", {
 		Name = "Fill",
 		Size = UDim2.new(0, 0, 1, 0),
@@ -1194,6 +1894,7 @@ function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callba
 		Active = false
 	}, track)
 	corner(fill, 4)
+
 	local knob = make("Frame", {
 		Name = "Knob",
 		Position = UDim2.new(0, 0, 0.5, 0),
@@ -1205,15 +1906,20 @@ function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callba
 	}, track)
 	corner(knob, 7)
 	stroke(knob, Theme.Stroke, 0.4)
+
 	local minNumber = tonumber(minValue) or 0
 	local maxNumber = tonumber(maxValue) or 100
 	if maxNumber <= minNumber then
 		maxNumber = minNumber + 1
 	end
+
 	local value = math.clamp(tonumber(defaultValue) or minNumber, minNumber, maxNumber)
 	local dragging = false
 	local moveConnection
 	local endConnection
+
+	local state = createControlState(frame, "Slider", callback)
+
 	local function apply(nextValue, fire)
 		value = math.clamp(tonumber(nextValue) or minNumber, minNumber, maxNumber)
 		local fraction = (value - minNumber) / (maxNumber - minNumber)
@@ -1222,9 +1928,18 @@ function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callba
 		valueLabel.Text = formatValue(value)
 		frame:SetAttribute("MikuValue", value)
 		if fire then
-			safeCall(callback, value)
+			state.fire(value)
 		end
 	end
+
+	state.get = function()
+		return value
+	end
+
+	state.set = function(nextValue, fire)
+		apply(nextValue, fire ~= false)
+	end
+
 	local function stop()
 		dragging = false
 		if moveConnection then
@@ -1236,10 +1951,12 @@ function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callba
 			endConnection = nil
 		end
 	end
+
 	local function fromX(positionX)
 		local relative = math.clamp((positionX - track.AbsolutePosition.X) / math.max(1, track.AbsoluteSize.X), 0, 1)
 		return minNumber + (maxNumber - minNumber) * relative
 	end
+
 	track.InputBegan:Connect(function(input)
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
 			return
@@ -1258,20 +1975,15 @@ function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callba
 			end
 		end)
 	end)
+
 	apply(value, false)
 	refreshPage(page)
 	return frame
 end
 
-function Lib:CreateTextBox(parent, text, placeholder, defaultValue, callback)
-	if type(defaultValue) == "function" and callback == nil then
-		callback = defaultValue
-		defaultValue = ""
-	end
-	if type(placeholder) == "function" and callback == nil then
-		callback = placeholder
-		placeholder = "Digite"
-	end
+function Lib:CreateTextBox(parent, a, b, c, d)
+	local text, placeholder, defaultValue, callback = parseTextBoxArgs(a, b, c, d)
+
 	local frame, page = prepareControl(parent, 42, "Frame")
 	local label = make("TextLabel", {
 		Name = "Label",
@@ -1286,6 +1998,7 @@ function Lib:CreateTextBox(parent, text, placeholder, defaultValue, callback)
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		BorderSizePixel = 0
 	}, frame)
+
 	local box = make("TextBox", {
 		Name = "Input",
 		Position = UDim2.new(0.42, 0, 0, 7),
@@ -1309,20 +2022,42 @@ function Lib:CreateTextBox(parent, text, placeholder, defaultValue, callback)
 		PaddingLeft = UDim.new(0, 8),
 		PaddingRight = UDim.new(0, 8)
 	}, box)
+
+	local state = createControlState(box, "Textbox", callback)
+
+	local function setText(nextText, fire)
+		box.Text = tostring(nextText or "")
+		if fire then
+			state.fire(box.Text)
+		end
+	end
+
+	state.get = function()
+		return box.Text
+	end
+
+	state.set = setText
+
+	state._destroy = function()
+		if frame and frame.Parent then
+			frame:Destroy()
+		end
+	end
+
 	box.FocusLost:Connect(function()
-		safeCall(callback, box.Text)
+		state.fire(box.Text)
 	end)
+
 	refreshPage(page)
 	return box
 end
 
-function Lib:CreateDropdown(parent, text, options, default, callback)
-	if type(default) == "function" and callback == nil then
-		callback = default
-		default = nil
-	end
+function Lib:CreateDropdown(parent, a, b, c, d)
+	local text, options, default, callback = parseDropdownArgs(a, b, c, d)
+
 	local control, page = prepareControl(parent, 42, "Frame")
 	local optionList = type(options) == "table" and options or {}
+
 	local row = make("TextButton", {
 		Name = "Row",
 		Size = UDim2.new(1, 0, 0, 42),
@@ -1334,6 +2069,7 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 	}, control)
 	corner(row, 9)
 	stroke(row, Theme.Stroke, 0.4)
+
 	local label = make("TextLabel", {
 		Name = "Label",
 		Position = UDim2.fromOffset(12, 0),
@@ -1347,6 +2083,7 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		BorderSizePixel = 0
 	}, row)
+
 	local valueLabel = make("TextLabel", {
 		Name = "Value",
 		Position = UDim2.new(0.5, 0, 0, 0),
@@ -1360,6 +2097,7 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		BorderSizePixel = 0
 	}, row)
+
 	local arrow = make("TextLabel", {
 		Name = "Arrow",
 		Position = UDim2.new(1, -22, 0, 0),
@@ -1372,14 +2110,18 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 		TextXAlignment = Enum.TextXAlignment.Center,
 		BorderSizePixel = 0
 	}, row)
+
 	local selected = default
 	if selected == nil and #optionList > 0 then
 		selected = optionList[1]
 	end
+
 	valueLabel.Text = selected and tostring(selected) or "Nenhum"
+
 	local optionHeight = 28
 	local optionPadding = 4
 	local listHeight = 8 + #optionList * optionHeight + math.max(0, #optionList - 1) * optionPadding
+
 	local list = make("Frame", {
 		Name = "Options",
 		Position = UDim2.fromOffset(0, 48),
@@ -1393,19 +2135,48 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 	}, control)
 	corner(list, 10)
 	stroke(list, Theme.Stroke, 0.35)
+
 	make("UIPadding", {
 		PaddingTop = UDim.new(0, 4),
 		PaddingBottom = UDim.new(0, 4),
 		PaddingLeft = UDim.new(0, 4),
 		PaddingRight = UDim.new(0, 4)
 	}, list)
+
 	make("UIListLayout", {
 		Padding = UDim.new(0, optionPadding),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		HorizontalAlignment = Enum.HorizontalAlignment.Left,
 		VerticalAlignment = Enum.VerticalAlignment.Top
 	}, list)
+
 	local isOpen = false
+	local state = createControlState(control, "Dropdown", callback)
+
+	local function setSelectedOption(option, fire)
+		selected = option
+		valueLabel.Text = selected and tostring(selected) or "Nenhum"
+		control:SetAttribute("MikuValue", selected and tostring(selected) or "")
+		if fire then
+			state.fire(selected)
+		end
+	end
+
+	state.get = function()
+		return selected
+	end
+
+	state.set = function(value, fire)
+		local found = nil
+		for _, option in ipairs(optionList) do
+			if option == value or tostring(option) == tostring(value) then
+				found = option
+				break
+			end
+		end
+		setSelectedOption(found ~= nil and found or value, fire ~= false)
+	end
+
 	local function setOpen(value)
 		isOpen = value
 		list.Visible = isOpen
@@ -1413,6 +2184,7 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 		arrow.Text = isOpen and "^" or "v"
 		refreshPage(page)
 	end
+
 	for index, option in ipairs(optionList) do
 		local optionButton = make("TextButton", {
 			Name = tostring(option),
@@ -1434,31 +2206,292 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 			PaddingLeft = UDim.new(0, 8),
 			PaddingRight = UDim.new(0, 8)
 		}, optionButton)
+
 		optionButton.MouseEnter:Connect(function()
 			TweenService:Create(optionButton, Fast, {
 				BackgroundTransparency = 0.7
 			}):Play()
 		end)
+
 		optionButton.MouseLeave:Connect(function()
 			TweenService:Create(optionButton, Fast, {
 				BackgroundTransparency = 1
 			}):Play()
 		end)
+
 		optionButton.MouseButton1Click:Connect(function()
-			selected = option
-			valueLabel.Text = tostring(option)
-			control:SetAttribute("MikuValue", tostring(option))
+			setSelectedOption(option, true)
 			setOpen(false)
-			safeCall(callback, option)
 		end)
 	end
+
 	control:SetAttribute("MikuValue", selected and tostring(selected) or "")
+
 	row.MouseButton1Click:Connect(function()
 		setOpen(not isOpen)
 	end)
+
 	refreshPage(page)
 	return control
 end
+
+function Lib:CreateKeybind(parent, a, b, c)
+	local text, default, callback = parseKeybindArgs(a, b, c)
+
+	local host = resolveHost(parent)
+	local page = getPageFrom(host)
+
+	local row = make("TextButton", {
+		Name = "Keybind",
+		Size = UDim2.new(1, 0, 0, 42),
+		BackgroundColor3 = Theme.SurfaceAlt,
+		BackgroundTransparency = 1,
+		Text = "",
+		AutoButtonColor = false,
+		BorderSizePixel = 0,
+		LayoutOrder = nextLayoutOrder(host)
+	}, host)
+	corner(row, 9)
+
+	local label = make("TextLabel", {
+		Name = "Label",
+		Position = UDim2.fromOffset(12, 0),
+		Size = UDim2.new(1, -130, 1, 0),
+		BackgroundTransparency = 1,
+		Text = tostring(text or "Keybind"),
+		Font = Enum.Font.Gotham,
+		TextSize = 14,
+		TextColor3 = Theme.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		BorderSizePixel = 0
+	}, row)
+
+	local keyBox = make("TextLabel", {
+		Name = "Key",
+		Position = UDim2.new(1, -118, 0.5, -11),
+		Size = UDim2.fromOffset(106, 22),
+		BackgroundColor3 = Theme.SurfaceHi,
+		BackgroundTransparency = 0.08,
+		BorderSizePixel = 0,
+		Text = "",
+		Font = Enum.Font.GothamMedium,
+		TextSize = 12,
+		TextColor3 = Theme.AccentSoft,
+		Active = false
+	}, row)
+	corner(keyBox, 6)
+	stroke(keyBox, Theme.Stroke, 0.4)
+
+	local state = createControlState(row, "Keybind", callback)
+	local currentKey = normalizeKey(default)
+	local listening = false
+	local inputConnection
+
+	local function updateDisplay()
+		if listening then
+			keyBox.Text = "Pressione..."
+		else
+			keyBox.Text = currentKey and currentKey.Name or "Nenhuma"
+		end
+		row:SetAttribute("MikuKeybind", currentKey and currentKey.Name or "")
+	end
+
+	local function setKey(key, fire)
+		currentKey = normalizeKey(key)
+		updateDisplay()
+		if fire then
+			state.fire(currentKey)
+		end
+	end
+
+	state.get = function()
+		return currentKey
+	end
+
+	state.set = function(value, fire)
+		setKey(value, fire ~= false)
+	end
+
+	state._destroy = function()
+		if inputConnection then
+			inputConnection:Disconnect()
+			inputConnection = nil
+		end
+	end
+
+	inputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if not listening then
+			return
+		end
+		if gameProcessed then
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.Unknown then
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.Escape then
+			listening = false
+			updateDisplay()
+			return
+		end
+		listening = false
+		setKey(input.KeyCode, true)
+	end)
+
+	row.MouseButton1Click:Connect(function()
+		listening = not listening
+		updateDisplay()
+	end)
+
+	row.MouseEnter:Connect(function()
+		TweenService:Create(row, Fast, {
+			BackgroundTransparency = 0.82
+		}):Play()
+	end)
+
+	row.MouseLeave:Connect(function()
+		TweenService:Create(row, Fast, {
+			BackgroundTransparency = 1
+		}):Play()
+	end)
+
+	row.Destroying:Connect(function()
+		if inputConnection then
+			inputConnection:Disconnect()
+			inputConnection = nil
+		end
+	end)
+
+	updateDisplay()
+	refreshPage(page)
+	return row
+end
+
+function Lib:AddToggle(parent, ...)
+	return createControlAPI(self:CreateToggle(parent, ...))
+end
+
+function Lib:AddSlider(parent, ...)
+	return createControlAPI(self:CreateSlider(parent, ...))
+end
+
+function Lib:AddButton(parent, ...)
+	return createControlAPI(self:CreateButton(parent, ...))
+end
+
+function Lib:AddTextBox(parent, ...)
+	return createControlAPI(self:CreateTextBox(parent, ...))
+end
+
+function Lib:AddDropdown(parent, ...)
+	return createControlAPI(self:CreateDropdown(parent, ...))
+end
+
+function Lib:AddKeybind(parent, ...)
+	return createControlAPI(self:CreateKeybind(parent, ...))
+end
+
+function Lib:AddLabel(parent, ...)
+	return self:CreateLabel(parent, ...)
+end
+
+function Lib:AddSection(parent, ...)
+	return self:CreateSection(parent, ...)
+end
+
+function Lib:AddDivider(parent, ...)
+	return self:CreateDivider(parent, ...)
+end
+
+function Lib:CreateBox(parent, title)
+	if isConfigTable(title) then
+		local cfg = title
+		title = cfg.Title or cfg.Text or cfg.Name or "Box"
+	end
+
+	local host = resolveHost(parent)
+	local page = getPageFrom(host)
+
+	local box = make("Frame", {
+		Name = "Box",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = Theme.Surface,
+		BackgroundTransparency = 0.35,
+		BorderSizePixel = 0,
+		LayoutOrder = nextLayoutOrder(host)
+	}, host)
+	corner(box, 10)
+	stroke(box, Theme.Stroke, 0.4)
+
+	make("UIPadding", {
+		PaddingTop = UDim.new(0, 8),
+		PaddingBottom = UDim.new(0, 8),
+		PaddingLeft = UDim.new(0, 8),
+		PaddingRight = UDim.new(0, 8)
+	}, box)
+
+	make("UIListLayout", {
+		Padding = UDim.new(0, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Left,
+		VerticalAlignment = Enum.VerticalAlignment.Top
+	}, box)
+
+	local titleLabel = make("TextLabel", {
+		Name = "Title",
+		Size = UDim2.new(1, 0, 0, 20),
+		BackgroundTransparency = 1,
+		Text = tostring(title or "Box"),
+		Font = Enum.Font.GothamBold,
+		TextSize = 12,
+		TextColor3 = Theme.AccentSoft,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		BorderSizePixel = 0,
+		LayoutOrder = 0
+	}, box)
+
+	local inner = make("Frame", {
+		Name = "Holder",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		LayoutOrder = 1
+	}, box)
+
+	make("UIListLayout", {
+		Padding = UDim.new(0, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Left,
+		VerticalAlignment = Enum.VerticalAlignment.Top
+	}, inner)
+
+	refreshPage(page)
+
+	local boxObject = setmetatable({
+		_controlHost = inner,
+		_host = inner,
+		_page = page,
+		_box = box,
+		_title = titleLabel,
+		Page = page,
+		Instance = box
+	}, ContainerMeta)
+
+	return boxObject
+end
+
+function Lib:AddBox(parent, ...)
+	return self:CreateBox(parent, ...)
+end
+
+Lib.CreateTextbox = Lib.CreateTextBox
+Lib.CreateKeyBind = Lib.CreateKeybind
+Lib.CreateKey = Lib.CreateKeybind
+Lib.AddTextbox = Lib.AddTextBox
+Lib.AddKeyBind = Lib.AddKeybind
+Lib.AddKey = Lib.AddKeybind
 
 local function ensureNotifyGui()
 	if Lib._notifyGui and Lib._notifyGui.Parent then
@@ -1526,7 +2559,7 @@ function Lib:Notify(title, text, duration)
 		BackgroundColor3 = Theme.Accent,
 		BorderSizePixel = 0
 	}, card)
-	local titleLabel = make("TextLabel", {
+	make("TextLabel", {
 		Name = "Title",
 		Position = UDim2.fromOffset(14, 9),
 		Size = UDim2.new(1, -28, 0, 18),
@@ -1539,7 +2572,7 @@ function Lib:Notify(title, text, duration)
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		BorderSizePixel = 0
 	}, card)
-	local textLabel = make("TextLabel", {
+	make("TextLabel", {
 		Name = "Text",
 		Position = UDim2.fromOffset(14, 28),
 		Size = UDim2.new(1, -28, 0, 26),
