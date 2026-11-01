@@ -55,7 +55,7 @@ local Ease = {
 
 local Lib = {}
 Lib.__index = Lib
-Lib.Version = "4.1.0"
+Lib.Version = "4.2.0"
 Lib.Theme = Theme
 Lib.Ease = Ease
 
@@ -78,6 +78,7 @@ local function getViewport()
     if camera then
         return camera.ViewportSize
     end
+
     return Vector2.new(1280, 720)
 end
 
@@ -113,9 +114,9 @@ local function attachGui(gui)
     end)
 end
 
-local function applyCorner(instance, radius)
+local function applyCorner(instance)
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, radius or 10)
+    corner.CornerRadius = UDim.new(1, 0)
     corner.Parent = instance
     return corner
 end
@@ -505,7 +506,7 @@ function Lib:CreateWindow(config)
     toggleButton.TextSize = 13
     toggleButton.TextColor3 = Theme.Text
     toggleButton.ZIndex = 100
-    applyCorner(toggleButton, 9)
+    applyCorner(toggleButton)
     applyStroke(toggleButton, accent, 1, 0.15)
     toggleButton.Parent = gui
 
@@ -527,10 +528,10 @@ function Lib:CreateWindow(config)
     shadow.Position = UDim2.fromScale(0.5, 0.5)
     shadow.Size = UDim2.new(1, 18, 1, 18)
     shadow.BackgroundColor3 = Color3.new(0, 0, 0)
-    shadow.BackgroundTransparency = 0.55
+    shadow.BackgroundTransparency = 1
     shadow.BorderSizePixel = 0
     shadow.ZIndex = 0
-    applyCorner(shadow, 18)
+    applyCorner(shadow)
     shadow.Parent = wrapper
 
     local root = Instance.new("Frame")
@@ -540,8 +541,8 @@ function Lib:CreateWindow(config)
     root.BorderSizePixel = 0
     root.ClipsDescendants = true
     root.ZIndex = 1
-    applyCorner(root, 14)
-    local rootStroke = applyStroke(root, Theme.Stroke, 1, 0.25)
+    applyCorner(root)
+    applyStroke(root, Theme.Stroke, 1, 0.25)
     root.Parent = wrapper
 
     local topBar = Instance.new("Frame")
@@ -551,7 +552,7 @@ function Lib:CreateWindow(config)
     topBar.BorderSizePixel = 0
     topBar.Active = true
     topBar.ZIndex = 2
-    applyCorner(topBar, 14)
+    applyCorner(topBar)
     topBar.Parent = root
 
     local accentBar = Instance.new("Frame")
@@ -560,7 +561,7 @@ function Lib:CreateWindow(config)
     accentBar.BackgroundColor3 = accent
     accentBar.BorderSizePixel = 0
     accentBar.ZIndex = 3
-    applyCorner(accentBar, 4)
+    applyCorner(accentBar)
     accentBar.Parent = topBar
 
     local titleLabel = Instance.new("TextLabel")
@@ -598,7 +599,7 @@ function Lib:CreateWindow(config)
     minButton.TextSize = 18
     minButton.TextColor3 = Theme.TextDim
     minButton.ZIndex = 4
-    applyCorner(minButton, 8)
+    applyCorner(minButton)
     applyStroke(minButton, Theme.Stroke, 1, 0.4)
     minButton.Parent = topBar
 
@@ -613,7 +614,7 @@ function Lib:CreateWindow(config)
     closeButton.TextSize = 18
     closeButton.TextColor3 = Theme.TextDim
     closeButton.ZIndex = 4
-    applyCorner(closeButton, 8)
+    applyCorner(closeButton)
     local closeStroke = applyStroke(closeButton, Theme.Stroke, 1, 0.4)
     closeButton.Parent = topBar
 
@@ -622,6 +623,7 @@ function Lib:CreateWindow(config)
             BackgroundColor3 = Theme.Danger,
             TextColor3 = Theme.Text,
         })
+
         playTween(closeStroke, Ease.Fast, {
             Color = Theme.Danger,
             Transparency = 0.1,
@@ -633,6 +635,7 @@ function Lib:CreateWindow(config)
             BackgroundColor3 = Theme.SurfaceAlt,
             TextColor3 = Theme.TextDim,
         })
+
         playTween(closeStroke, Ease.Fast, {
             Color = Theme.Stroke,
             Transparency = 0.4,
@@ -671,7 +674,7 @@ function Lib:CreateWindow(config)
     sidebar.BorderSizePixel = 0
     sidebar.ZIndex = 2
     applyPadding(sidebar, 8, 8, 10, 10)
-    applyList(sidebar, 6)
+    applyList(sidebar, 8)
     sidebar.Parent = root
 
     local sidebarDivider = Instance.new("Frame")
@@ -1133,6 +1136,7 @@ function Lib:CreateWindow(config)
         self.Minimized = state
 
         local targetSize
+
         if state then
             targetSize = UDim2.fromOffset(baseSize.X.Offset, 55)
         else
@@ -1242,7 +1246,7 @@ function Lib:CreateWindow(config)
         tabButton.Text = ""
         tabButton.LayoutOrder = #self.Tabs + 1
         tabButton.ZIndex = 3
-        applyCorner(tabButton, 8)
+        applyCorner(tabButton)
         local tabStroke = applyStroke(tabButton, Theme.Stroke, 1, 1)
         tabButton.Parent = sidebar
 
@@ -1253,7 +1257,7 @@ function Lib:CreateWindow(config)
         tabAccent.BackgroundTransparency = 1
         tabAccent.BorderSizePixel = 0
         tabAccent.ZIndex = 4
-        applyCorner(tabAccent, 3)
+        applyCorner(tabAccent)
         tabAccent.Parent = tabButton
 
         local tabLabel = Instance.new("TextLabel")
@@ -1281,7 +1285,7 @@ function Lib:CreateWindow(config)
         page.Visible = false
         page.ZIndex = 3
         applyPadding(page, 0, 6, 0, 0)
-        applyList(page, 8, Enum.HorizontalAlignment.Left)
+        applyList(page, 10, Enum.HorizontalAlignment.Left)
         page.Parent = content
 
         local tab = {
@@ -1340,7 +1344,7 @@ function Lib:CreateButton(parent, text, callback)
     button.BackgroundColor3 = Theme.SurfaceAlt
     button.AutoButtonColor = false
     button.Text = ""
-    applyCorner(button, 9)
+    applyCorner(button)
     local stroke = applyStroke(button, Theme.Stroke, 1, 0.4)
     button.Parent = parent
 
@@ -1399,7 +1403,7 @@ function Lib:CreateToggle(parent, text, default, callback)
     row.BackgroundColor3 = Theme.SurfaceAlt
     row.BackgroundTransparency = 0.35
     row.BorderSizePixel = 0
-    applyCorner(row, 9)
+    applyCorner(row)
     row.Parent = parent
 
     local label = Instance.new("TextLabel")
@@ -1420,7 +1424,7 @@ function Lib:CreateToggle(parent, text, default, callback)
     track.BackgroundColor3 = Theme.SurfaceHi
     track.BorderSizePixel = 0
     track.ZIndex = 3
-    applyCorner(track, 10)
+    applyCorner(track)
     local trackStroke = applyStroke(track, Theme.Stroke, 1, 0.4)
     track.Parent = row
 
@@ -1430,7 +1434,7 @@ function Lib:CreateToggle(parent, text, default, callback)
     knob.BackgroundColor3 = Theme.TextDim
     knob.BorderSizePixel = 0
     knob.ZIndex = 4
-    applyCorner(knob, 7)
+    applyCorner(knob)
     knob.Parent = track
 
     local click = Instance.new("TextButton")
@@ -1490,6 +1494,7 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
         minimum, maximum = maximum, minimum
     end
 
+    local accent = getAccent(parent)
     local unit = tostring(text or "CPS")
     local value = clamp(tonumber(default) or minimum, minimum, maximum)
 
@@ -1500,42 +1505,37 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
 
     local row = Instance.new("Frame")
     row.Name = "Slider"
-    row.Size = UDim2.new(1, 0, 0, 52)
+    row.Size = UDim2.new(1, 0, 0, 40)
     row.BackgroundTransparency = 1
     row.BorderSizePixel = 0
     row.Parent = parent
 
     local track = Instance.new("Frame")
     track.Name = "Track"
-    track.Size = UDim2.new(1, 0, 0, 42)
-    track.Position = UDim2.new(0, 0, 0.5, -21)
-    track.BackgroundColor3 = Color3.fromRGB(31, 32, 31)
+    track.Size = UDim2.new(1, 0, 0, 28)
+    track.Position = UDim2.new(0, 0, 0.5, -14)
+    track.BackgroundColor3 = Theme.SurfaceAlt
     track.BorderSizePixel = 0
     track.ClipsDescendants = true
     track.Parent = row
 
-    local trackCorner = Instance.new("UICorner")
-    trackCorner.CornerRadius = UDim.new(1, 0)
-    trackCorner.Parent = track
+    applyCorner(track)
 
     local outline = Instance.new("UIStroke")
-    outline.Color = Color3.fromRGB(150, 225, 190)
-    outline.Thickness = 2
-    outline.Transparency = 0
+    outline.Color = Theme.Stroke
+    outline.Thickness = 1
+    outline.Transparency = 0.2
     outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     outline.Parent = track
 
     local fill = Instance.new("Frame")
     fill.Name = "Fill"
     fill.Size = UDim2.new(0, 0, 1, 0)
-    fill.BackgroundColor3 = Color3.fromRGB(101, 193, 159)
+    fill.BackgroundColor3 = accent
     fill.BorderSizePixel = 0
     fill.ZIndex = 2
     fill.Parent = track
-
-    local fillCorner = Instance.new("UICorner")
-    fillCorner.CornerRadius = UDim.new(1, 0)
-    fillCorner.Parent = fill
+    applyCorner(fill)
 
     local click = Instance.new("TextButton")
     click.Name = "ClickArea"
@@ -1549,11 +1549,10 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
     local valueLabel = Instance.new("TextLabel")
     valueLabel.Name = "Value"
     valueLabel.Size = UDim2.fromScale(1, 1)
-    valueLabel.Position = UDim2.fromScale(0, 0)
     valueLabel.BackgroundTransparency = 1
     valueLabel.Font = Theme.FontBold
-    valueLabel.TextSize = 15
-    valueLabel.TextColor3 = Color3.fromRGB(240, 255, 248)
+    valueLabel.TextSize = 13
+    valueLabel.TextColor3 = Theme.Text
     valueLabel.TextXAlignment = Enum.TextXAlignment.Center
     valueLabel.TextYAlignment = Enum.TextYAlignment.Center
     valueLabel.ZIndex = 4
@@ -1579,10 +1578,13 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
     end
 
     local function set(newValue, fireCallback)
-        value = clamp(tonumber(newValue) or minimum, minimum, maximum)
+        local newNumber = clamp(tonumber(newValue) or minimum, minimum, maximum)
+        local changed = newNumber ~= value
+
+        value = newNumber
         render()
 
-        if fireCallback then
+        if fireCallback and changed then
             invoke(callback, value)
         end
     end
@@ -1671,7 +1673,7 @@ function Lib:CreateTextBox(parent, placeholder, callback)
     box.BackgroundColor3 = Theme.SurfaceAlt
     box.BackgroundTransparency = 0.35
     box.BorderSizePixel = 0
-    applyCorner(box, 9)
+    applyCorner(box)
     local stroke = applyStroke(box, Theme.Stroke, 1, 0.4)
     box.Parent = parent
 
@@ -1753,7 +1755,7 @@ function Lib:CreateSection(parent, title)
     dot.Position = UDim2.new(0, 0, 0.5, -6)
     dot.BackgroundColor3 = accent
     dot.BorderSizePixel = 0
-    applyCorner(dot, 2)
+    applyCorner(dot)
     dot.Parent = wrap
 
     local label = Instance.new("TextLabel")
@@ -1787,7 +1789,7 @@ function Lib:CreateDropdown(parent, text, options, callback)
     row.BackgroundTransparency = 0.35
     row.BorderSizePixel = 0
     row.ClipsDescendants = false
-    applyCorner(row, 9)
+    applyCorner(row)
     applyStroke(row, Theme.Stroke, 1, 0.4)
     row.Parent = parent
 
@@ -1846,7 +1848,7 @@ function Lib:CreateDropdown(parent, text, options, callback)
     list.Visible = false
     list.Active = true
     list.ZIndex = 500
-    applyCorner(list, 9)
+    applyCorner(list)
     applyStroke(list, Theme.Stroke, 1, 0.2)
     applyPadding(list, 6, 6, 6, 6)
     applyList(list, 4, Enum.HorizontalAlignment.Left)
@@ -1923,7 +1925,7 @@ function Lib:CreateDropdown(parent, text, options, callback)
             optionButton.TextXAlignment = Enum.TextXAlignment.Left
             optionButton.Text = "  " .. tostring(option)
             optionButton.ZIndex = 501
-            applyCorner(optionButton, 6)
+            applyCorner(optionButton)
             optionButton.Parent = list
 
             optionButton.MouseEnter:Connect(function()
@@ -2084,10 +2086,10 @@ function Lib:Notify(config)
     shadow.Position = UDim2.fromScale(0.5, 0.5)
     shadow.Size = UDim2.new(1, 14, 1, 14)
     shadow.BackgroundColor3 = Color3.new(0, 0, 0)
-    shadow.BackgroundTransparency = 0.55
+    shadow.BackgroundTransparency = 1
     shadow.BorderSizePixel = 0
     shadow.ZIndex = 0
-    applyCorner(shadow, 12)
+    applyCorner(shadow)
     shadow.Parent = wrapper
 
     local holder = Instance.new("Frame")
@@ -2095,7 +2097,7 @@ function Lib:Notify(config)
     holder.BackgroundColor3 = Theme.Surface
     holder.BorderSizePixel = 0
     holder.ZIndex = 1
-    applyCorner(holder, 10)
+    applyCorner(holder)
     applyStroke(holder, Theme.Stroke, 1, 0.3)
     holder.Parent = wrapper
 
@@ -2105,7 +2107,7 @@ function Lib:Notify(config)
     colorBar.BackgroundColor3 = color
     colorBar.BorderSizePixel = 0
     colorBar.ZIndex = 2
-    applyCorner(colorBar, 2)
+    applyCorner(colorBar)
     colorBar.Parent = holder
 
     local titleLabel = Instance.new("TextLabel")
@@ -2139,7 +2141,7 @@ function Lib:Notify(config)
     progress.BackgroundColor3 = color
     progress.BorderSizePixel = 0
     progress.ZIndex = 2
-    applyCorner(progress, 1)
+    applyCorner(progress)
     progress.Parent = holder
 
     local entry = {
@@ -2225,7 +2227,7 @@ function Lib:CreateWatermark(config)
     frame.Active = config.Draggable == true
     frame.Parent = gui
 
-    applyCorner(frame, 9)
+    applyCorner(frame)
     local stroke = applyStroke(frame, accent, 1, 0.25)
 
     local accentBar = Instance.new("Frame")
@@ -2235,7 +2237,7 @@ function Lib:CreateWatermark(config)
     accentBar.BackgroundColor3 = accent
     accentBar.BorderSizePixel = 0
     accentBar.ZIndex = 2
-    applyCorner(accentBar, 2)
+    applyCorner(accentBar)
     accentBar.Parent = frame
 
     local label = Instance.new("TextLabel")
@@ -2332,6 +2334,7 @@ function Lib:DestroyAll()
     for _, entry in ipairs(table.clone(notificationEntries)) do
         entry.closed = true
     end
+
     table.clear(notificationEntries)
 
     for _, window in ipairs(table.clone(trackedWindows)) do
