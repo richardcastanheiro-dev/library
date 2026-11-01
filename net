@@ -1249,85 +1249,84 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
         minimum, maximum = maximum, minimum
     end
 
+    local unit = tostring(text or "CPS")
     local value = clamp(tonumber(default) or minimum, minimum, maximum)
+
     local dragging = false
     local dragInputType
     local changedConnection
     local endedConnection
 
     local row = Instance.new("Frame")
-    row.Size = UDim2.new(1, 0, 0, 58)
-    row.BackgroundColor3 = Theme.SurfaceAlt
-    row.BackgroundTransparency = 0.35
+    row.Name = "Slider"
+    row.Size = UDim2.new(1, 0, 0, 24)
+    row.BackgroundTransparency = 1
     row.BorderSizePixel = 0
-    applyCorner(row, 9)
     row.Parent = parent
 
-    local label = Instance.new("TextLabel")
-    label.BackgroundTransparency = 1
-    label.Size = UDim2.new(1, -82, 0, 16)
-    label.Position = UDim2.new(0, 12, 0, 8)
-    label.Font = Theme.FontSemi
-    label.TextSize = 13
-    label.TextColor3 = Theme.Text
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Text = tostring(text or "Slider")
-    label.Parent = row
-
-    local valueLabel = Instance.new("TextLabel")
-    valueLabel.BackgroundTransparency = 1
-    valueLabel.Size = UDim2.fromOffset(64, 16)
-    valueLabel.Position = UDim2.new(1, -76, 0, 8)
-    valueLabel.Font = Theme.FontBold
-    valueLabel.TextSize = 13
-    valueLabel.TextColor3 = getAccent(parent)
-    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
-    valueLabel.Parent = row
-
     local track = Instance.new("Frame")
-    track.Size = UDim2.new(1, -24, 0, 6)
-    track.Position = UDim2.new(0, 12, 0, 37)
-    track.BackgroundColor3 = Theme.SurfaceHi
+    track.Name = "Track"
+    track.Size = UDim2.new(1, 0, 0, 20)
+    track.Position = UDim2.new(0, 0, 0.5, -10)
+    track.BackgroundTransparency = 1
     track.BorderSizePixel = 0
-    applyCorner(track, 3)
+    track.ClipsDescendants = false
     track.Parent = row
 
     local fill = Instance.new("Frame")
+    fill.Name = "Fill"
     fill.Size = UDim2.new(0, 0, 1, 0)
-    fill.BackgroundColor3 = getAccent(parent)
+    fill.BackgroundColor3 = Color3.fromRGB(101, 193, 159)
     fill.BorderSizePixel = 0
+    fill.ZIndex = 2
     applyCorner(fill, 3)
     fill.Parent = track
 
-    local knob = Instance.new("Frame")
-    knob.Size = UDim2.fromOffset(14, 14)
-    knob.Position = UDim2.new(0, -7, 0.5, -7)
-    knob.BackgroundColor3 = Theme.Text
-    knob.BorderSizePixel = 0
-    applyCorner(knob, 7)
-    applyStroke(knob, getAccent(parent), 2, 0)
-    knob.Parent = track
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Name = "Value"
+    valueLabel.AnchorPoint = Vector2.new(0.5, 0)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Font = Theme.Font
+    valueLabel.TextSize = 12
+    valueLabel.TextColor3 = Color3.fromRGB(235, 255, 247)
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Center
+    valueLabel.TextYAlignment = Enum.TextYAlignment.Center
+    valueLabel.Text = ""
+    valueLabel.ZIndex = 4
+    valueLabel.Parent = track
 
     local click = Instance.new("TextButton")
-    click.Size = UDim2.new(1, 0, 0, 22)
-    click.Position = UDim2.new(0, 0, 0, 29)
+    click.Name = "ClickArea"
+    click.Size = UDim2.fromScale(1, 1)
     click.BackgroundTransparency = 1
+    click.AutoButtonColor = false
     click.Text = ""
     click.ZIndex = 5
-    click.Parent = row
+    click.Parent = track
 
     local function render()
-        local alpha
+        local alpha = 0
 
-        if maximum == minimum then
-            alpha = 0
-        else
-            alpha = (value - minimum) / (maximum - minimum)
+        if maximum ~= minimum then
+            alpha = clamp((value - minimum) / (maximum - minimum), 0, 1)
         end
 
         fill.Size = UDim2.new(alpha, 0, 1, 0)
-        knob.Position = UDim2.new(alpha, -7, 0.5, -7)
-        valueLabel.Text = tostring(math.floor(value + 0.5))
+        valueLabel.Text = string.format("%.1f %s", value, unit)
+
+        local trackWidth = track.AbsoluteSize.X
+        local labelWidth = math.min(130, trackWidth)
+        local labelHeight = track.AbsoluteSize.Y
+        local centerX = trackWidth * alpha / 2
+
+        centerX = clamp(
+            centerX,
+            labelWidth / 2,
+            math.max(labelWidth / 2, trackWidth - labelWidth / 2)
+        )
+
+        valueLabel.Size = UDim2.fromOffset(labelWidth, labelHeight)
+        valueLabel.Position = UDim2.fromOffset(centerX, 0)
     end
 
     local function set(newValue, fireCallback)
@@ -1345,7 +1344,12 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
             return
         end
 
-        local alpha = clamp((x - track.AbsolutePosition.X) / trackWidth, 0, 1)
+        local alpha = clamp(
+            (x - track.AbsolutePosition.X) / trackWidth,
+            0,
+            1
+        )
+
         set(minimum + (maximum - minimum) * alpha, true)
     end
 
@@ -1370,6 +1374,8 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
             return
         end
 
+        stopDragging()
+
         dragging = true
         dragInputType = input.UserInputType
         updateFromX(input.Position.X)
@@ -1377,6 +1383,7 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
         changedConnection = UserInputService.InputChanged:Connect(function(changedInput)
             local mouseMove = dragInputType == Enum.UserInputType.MouseButton1
                 and changedInput.UserInputType == Enum.UserInputType.MouseMovement
+
             local touchMove = dragInputType == Enum.UserInputType.Touch
                 and changedInput.UserInputType == Enum.UserInputType.Touch
 
@@ -1392,17 +1399,22 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
         end)
     end)
 
+    track:GetPropertyChangedSignal("AbsoluteSize"):Connect(render)
     row.Destroying:Connect(stopDragging)
+
     render()
 
     return {
         Set = function(_, newValue, fireCallback)
             set(newValue, fireCallback ~= false)
         end,
+
         Get = function()
             return value
         end,
+
         Row = row,
+        Fill = fill,
     }
 end
 
