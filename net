@@ -2260,7 +2260,7 @@ function Lib:CreateWatermark(config)
 
     local label = Instance.new("TextLabel")
     label.Name = "Text"
-    label.BackgroundTransparency = 1
+    label.BackgroundTransparency = 0
     label.Position = UDim2.new(0, 18, 0, 0)
     label.Size = UDim2.new(1, -26, 1, 0)
     label.Font = config.Font or Theme.FontBold
