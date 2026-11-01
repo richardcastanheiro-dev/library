@@ -10,6 +10,7 @@ local LocalPlayer = Players.LocalPlayer or (function()
 end)()
 
 local Shared = _G
+
 pcall(function()
     if type(getgenv) == "function" then
         Shared = getgenv()
@@ -20,14 +21,71 @@ if type(Shared) ~= "table" then
     Shared = _G
 end
 
-if Shared.MikuLibKeepOldInstance ~= true then
-    local old = Shared.MikuLibInstance
-    if type(old) == "table" and type(old.Destroy) == "function" then
-        pcall(function()
-            old:Destroy()
-        end)
+local function getGuiParents()
+    local parents = {}
+    local seen = {}
+
+    local function add(parent)
+        if parent and not seen[parent] then
+            seen[parent] = true
+            table.insert(parents, parent)
+        end
+    end
+
+    pcall(function()
+        add(gethui())
+    end)
+
+    add(CoreGui)
+
+    pcall(function()
+        add(LocalPlayer:FindFirstChildOfClass("PlayerGui"))
+    end)
+
+    return parents
+end
+
+local oldInstance = Shared.MikuLibInstance
+
+if type(oldInstance) == "table" and type(oldInstance.Destroy) == "function" then
+    pcall(function()
+        oldInstance:Destroy()
+    end)
+end
+
+for _, parent in ipairs(getGuiParents()) do
+    local descendants = {}
+
+    pcall(function()
+        descendants = parent:GetDescendants()
+    end)
+
+    for _, descendant in ipairs(descendants) do
+        if descendant:IsA("ScreenGui")
+            and (descendant.Name == "MikuLib" or descendant.Name == "MikuLibMain") then
+            pcall(function()
+                descendant:Destroy()
+            end)
+        end
+    end
+
+    local children = {}
+
+    pcall(function()
+        children = parent:GetChildren()
+    end)
+
+    for _, child in ipairs(children) do
+        if child:IsA("ScreenGui")
+            and (child.Name == "MikuLib" or child.Name == "MikuLibMain") then
+            pcall(function()
+                child:Destroy()
+            end)
+        end
     end
 end
+
+Shared.MikuLibInstance = nil
 
 local Theme = {
     Bg = Color3.fromRGB(12, 12, 16),
@@ -55,7 +113,7 @@ local Ease = {
 
 local Lib = {}
 Lib.__index = Lib
-Lib.Version = "4.3.0"
+Lib.Version = "5.0.0"
 Lib.Theme = Theme
 Lib.Ease = Ease
 
@@ -75,6 +133,7 @@ end
 
 local function getViewport()
     local camera = workspace.CurrentCamera
+
     if camera then
         return camera.ViewportSize
     end
@@ -175,6 +234,7 @@ local function invoke(callback, ...)
     end
 
     local ok, err = pcall(callback, ...)
+
     if not ok then
         warn("[MikuLib] " .. tostring(err))
     end
@@ -212,6 +272,7 @@ local function normalizeKeybind(value, useDefault)
 
     if type(value) == "string" then
         local keyName = value:gsub("^Enum%.KeyCode%.", "")
+
         local ok, key = pcall(function()
             return Enum.KeyCode[keyName]
         end)
@@ -244,6 +305,7 @@ local function getAccent(instance)
     while current do
         if current:IsA("ScreenGui") then
             local accent = current:GetAttribute("MikuAccent")
+
             if typeof(accent) == "Color3" then
                 return accent
             end
@@ -465,10 +527,14 @@ end
 function Lib:CreateWindow(config)
     config = config or {}
 
-    local title = config.Title or "Miku"
-    local subtitle = config.Subtitle or "v" .. self.Version
-    local accent = config.Accent or Theme.Accent
-    local rawSize = config.Size or UDim2.fromOffset(560, 400)
+    local title = tostring(config.Title or "Miku")
+    local subtitle = tostring(config.Subtitle or "v" .. self.Version)
+    local accent = typeof(config.Accent) == "Color3"
+        and config.Accent
+        or Theme.Accent
+    local rawSize = typeof(config.Size) == "UDim2"
+        and config.Size
+        or UDim2.fromOffset(560, 400)
     local keybind = normalizeKeybind(config.Keybind, true)
 
     local viewport = getViewport()
@@ -504,23 +570,28 @@ function Lib:CreateWindow(config)
     wrapper.ClipsDescendants = false
     wrapper.Parent = gui
 
+    local scale = Instance.new("UIScale")
+    scale.Scale = 1
+    scale.Parent = wrapper
+
     local shadow = Instance.new("Frame")
     shadow.Name = "Shadow"
     shadow.AnchorPoint = Vector2.new(0.5, 0.5)
     shadow.Position = UDim2.fromScale(0.5, 0.5)
     shadow.Size = UDim2.new(1, 18, 1, 18)
     shadow.BackgroundColor3 = Color3.new(0, 0, 0)
-    shadow.BackgroundTransparency = 1
+    shadow.BackgroundTransparency = 0.55
     shadow.BorderSizePixel = 0
     shadow.ZIndex = 0
-    applyCorner(shadow)
+    applyCorner(shadow, 16)
     shadow.Parent = wrapper
 
-    local root = Instance.new("Frame")
+    local root = Instance.new("CanvasGroup")
     root.Name = "Root"
     root.Size = UDim2.fromScale(1, 1)
     root.BackgroundColor3 = Theme.Bg
     root.BackgroundTransparency = 0
+    root.GroupTransparency = 0
     root.ClipsDescendants = true
     root.ZIndex = 1
     applyCorner(root, 14)
@@ -599,6 +670,7 @@ function Lib:CreateWindow(config)
     closeButton.TextColor3 = Theme.TextDim
     closeButton.ZIndex = 4
     applyCorner(closeButton)
+
     local closeStroke = applyStroke(closeButton, Theme.Stroke, 1, 0.4)
     closeButton.Parent = topBar
 
@@ -680,35 +752,68 @@ function Lib:CreateWindow(config)
     applyPadding(content, 14, 14, 14, 14)
     content.Parent = root
 
-    local resizeHandle = Instance.new("TextButton")
-    resizeHandle.Name = "ResizeIcon"
-    resizeHandle.AnchorPoint = Vector2.new(1, 1)
-    resizeHandle.Position = UDim2.new(1, -5, 1, -5)
-    resizeHandle.Size = UDim2.fromOffset(24, 24)
-    resizeHandle.BackgroundTransparency = 1
-    resizeHandle.BorderSizePixel = 0
-    resizeHandle.AutoButtonColor = false
-    resizeHandle.Active = true
-    resizeHandle.Selectable = false
-    resizeHandle.Text = "⤢"
-    resizeHandle.Font = Enum.Font.GothamBold
-    resizeHandle.TextSize = 21
-    resizeHandle.TextColor3 = Theme.TextDim
-    resizeHandle.ZIndex = 20
-    resizeHandle.Parent = root
+    local resizeButton = Instance.new("TextButton")
+    resizeButton.Name = "ResizeHandle"
+    resizeButton.AnchorPoint = Vector2.new(1, 1)
+    resizeButton.Position = UDim2.new(1, -5, 1, -5)
+    resizeButton.Size = UDim2.fromOffset(30, 30)
+    resizeButton.BackgroundTransparency = 1
+    resizeButton.BorderSizePixel = 0
+    resizeButton.AutoButtonColor = false
+    resizeButton.Active = true
+    resizeButton.Selectable = false
+    resizeButton.Text = ""
+    resizeButton.ZIndex = 20
+    resizeButton.Parent = root
 
-    resizeHandle.MouseEnter:Connect(function()
-        playTween(resizeHandle, Ease.Fast, {
-            TextColor3 = accent,
-            TextSize = 23,
-        })
+    local resizeIcon = Instance.new("Frame")
+    resizeIcon.Name = "Icon"
+    resizeIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+    resizeIcon.Position = UDim2.fromScale(0.5, 0.5)
+    resizeIcon.Size = UDim2.fromOffset(14, 14)
+    resizeIcon.BackgroundTransparency = 1
+    resizeIcon.BorderSizePixel = 0
+    resizeIcon.Active = false
+    resizeIcon.ZIndex = 21
+    resizeIcon.Parent = resizeButton
+
+    local resizeIconParts = {}
+
+    local function addResizeIconPart(x, y, partWidth, partHeight)
+        local part = Instance.new("Frame")
+        part.Size = UDim2.fromOffset(partWidth, partHeight)
+        part.Position = UDim2.fromOffset(x, y)
+        part.BackgroundColor3 = Theme.TextDim
+        part.BorderSizePixel = 0
+        part.Active = false
+        part.ZIndex = 22
+        part.Parent = resizeIcon
+        table.insert(resizeIconParts, part)
+    end
+
+    addResizeIconPart(0, 0, 6, 2)
+    addResizeIconPart(0, 0, 2, 6)
+    addResizeIconPart(8, 0, 6, 2)
+    addResizeIconPart(12, 0, 2, 6)
+    addResizeIconPart(0, 12, 6, 2)
+    addResizeIconPart(0, 8, 2, 6)
+    addResizeIconPart(8, 12, 6, 2)
+    addResizeIconPart(12, 8, 2, 6)
+
+    resizeButton.MouseEnter:Connect(function()
+        for _, part in ipairs(resizeIconParts) do
+            playTween(part, Ease.Fast, {
+                BackgroundColor3 = accent,
+            })
+        end
     end)
 
-    resizeHandle.MouseLeave:Connect(function()
-        playTween(resizeHandle, Ease.Fast, {
-            TextColor3 = Theme.TextDim,
-            TextSize = 21,
-        })
+    resizeButton.MouseLeave:Connect(function()
+        for _, part in ipairs(resizeIconParts) do
+            playTween(part, Ease.Fast, {
+                BackgroundColor3 = Theme.TextDim,
+            })
+        end
     end)
 
     local window = {
@@ -731,18 +836,22 @@ function Lib:CreateWindow(config)
     local dragging = false
     local pendingFirstMove = false
     local resizing = false
+
     local dragInputType
     local resizeInputType
     local dragInputObject
     local resizeInputObject
+
     local dragStart
     local startCenter
     local resizeStart
     local resizeStartSize
     local resizeStartTopLeft
-    local visibilityTween
-    local visibilityConnection
+
     local visibilityToken = 0
+    local visibilityTweens = {}
+    local visibilityConnection
+    local sizeTween
 
     local function clampWindowCenter(x, y)
         local view = getViewport()
@@ -766,31 +875,41 @@ function Lib:CreateWindow(config)
         return baseSize
     end
 
-    local function finalizeVisibilityTween()
-        visibilityToken += 1
+    local function cancelSizeTween()
+        if sizeTween then
+            pcall(function()
+                sizeTween:Cancel()
+            end)
 
+            sizeTween = nil
+        end
+    end
+
+    local function cancelVisibilityTweens()
         if visibilityConnection then
             visibilityConnection:Disconnect()
             visibilityConnection = nil
         end
 
-        local tween = visibilityTween
-        visibilityTween = nil
-
-        if tween then
+        for _, tween in ipairs(visibilityTweens) do
             pcall(function()
                 tween:Cancel()
             end)
         end
 
-        wrapper.Rotation = 0
+        table.clear(visibilityTweens)
+    end
+
+    local function finalizeVisibilityTween()
+        visibilityToken += 1
+        cancelVisibilityTweens()
+
+        scale.Scale = 1
+        root.GroupTransparency = window.Visible and 0 or 1
+        wrapper.Visible = window.Visible
 
         if window.Visible then
-            wrapper.Visible = true
             wrapper.Size = getDisplayedSize()
-        else
-            wrapper.Visible = false
-            wrapper.Size = UDim2.fromOffset(0, 0)
         end
     end
 
@@ -798,6 +917,7 @@ function Lib:CreateWindow(config)
         dragging = false
         pendingFirstMove = false
         resizing = false
+
         dragInputType = nil
         resizeInputType = nil
         dragInputObject = nil
@@ -840,20 +960,15 @@ function Lib:CreateWindow(config)
         window.Visible = false
         visibilityToken += 1
 
-        if visibilityConnection then
-            visibilityConnection:Disconnect()
-            visibilityConnection = nil
-        end
+        cancelVisibilityTweens()
+        cancelSizeTween()
+        cleanupInputConnections()
 
-        if visibilityTween then
-            pcall(function()
-                visibilityTween:Cancel()
-            end)
-            visibilityTween = nil
+        if activeDropdownClose then
+            pcall(activeDropdownClose)
         end
 
         removeTracked(trackedWindows, window)
-        cleanupInputConnections()
 
         if Shared.MikuLibInstance == window then
             Shared.MikuLibInstance = nil
@@ -874,9 +989,15 @@ function Lib:CreateWindow(config)
 
         state = state == true
 
-        if window.Visible == state then
+        if window.Visible == state and #visibilityTweens == 0 then
             return
         end
+
+        visibilityToken += 1
+        local token = visibilityToken
+
+        cancelVisibilityTweens()
+        cancelSizeTween()
 
         if not state then
             if activeDropdownClose then
@@ -886,27 +1007,11 @@ function Lib:CreateWindow(config)
             dragging = false
             pendingFirstMove = false
             resizing = false
+
             dragInputType = nil
             resizeInputType = nil
             dragInputObject = nil
             resizeInputObject = nil
-        end
-
-        visibilityToken += 1
-        local token = visibilityToken
-
-        if visibilityConnection then
-            visibilityConnection:Disconnect()
-            visibilityConnection = nil
-        end
-
-        local oldTween = visibilityTween
-        visibilityTween = nil
-
-        if oldTween then
-            pcall(function()
-                oldTween:Cancel()
-            end)
         end
 
         local wasWrapperVisible = wrapper.Visible
@@ -914,58 +1019,68 @@ function Lib:CreateWindow(config)
         window.Visible = state
         wrapper.Visible = true
 
-        local targetSize
-
         if state then
-            targetSize = getDisplayedSize()
+            wrapper.Size = getDisplayedSize()
 
             if not wasWrapperVisible then
-                wrapper.Size = UDim2.fromOffset(0, 0)
-                wrapper.Rotation = -8
+                scale.Scale = 0.92
+                root.GroupTransparency = 1
             end
-        else
-            targetSize = UDim2.fromOffset(0, 0)
         end
 
-        local tween = TweenService:Create(
-            wrapper,
-            TweenInfo.new(
-                0.28,
-                Enum.EasingStyle.Quint,
-                Enum.EasingDirection.Out
-            ),
+        local tweenInfo = TweenInfo.new(
+            0.18,
+            Enum.EasingStyle.Quint,
+            state and Enum.EasingDirection.Out or Enum.EasingDirection.In
+        )
+
+        local scaleTween = TweenService:Create(
+            scale,
+            tweenInfo,
             {
-                Size = targetSize,
-                Rotation = state and 0 or -8,
+                Scale = state and 1 or 0.92,
             }
         )
 
-        visibilityTween = tween
+        local groupTween = TweenService:Create(
+            root,
+            tweenInfo,
+            {
+                GroupTransparency = state and 0 or 1,
+            }
+        )
 
-        visibilityConnection = tween.Completed:Connect(function()
-            if token ~= visibilityToken or visibilityTween ~= tween then
+        visibilityTweens = {
+            scaleTween,
+            groupTween,
+        }
+
+        visibilityConnection = scaleTween.Completed:Connect(function(playbackState)
+            if token ~= visibilityToken then
                 return
             end
 
-            visibilityTween = nil
-
-            if visibilityConnection then
-                visibilityConnection:Disconnect()
-                visibilityConnection = nil
+            if playbackState ~= Enum.PlaybackState.Completed then
+                return
             end
+
+            visibilityConnection = nil
+            table.clear(visibilityTweens)
 
             if state then
                 wrapper.Visible = true
                 wrapper.Size = getDisplayedSize()
-                wrapper.Rotation = 0
+                scale.Scale = 1
+                root.GroupTransparency = 0
             else
                 wrapper.Visible = false
-                wrapper.Size = UDim2.fromOffset(0, 0)
-                wrapper.Rotation = 0
+                scale.Scale = 1
+                root.GroupTransparency = 1
             end
         end)
 
-        tween:Play()
+        scaleTween:Play()
+        groupTween:Play()
     end
 
     function window:SetVisible(state)
@@ -1013,22 +1128,8 @@ function Lib:CreateWindow(config)
             return
         end
 
-        finalizeVisibilityTween()
-
         if not isPointerInput(input) then
             return
-        end
-
-        if dragging then
-            if dragInputType == Enum.UserInputType.Touch
-                and input.UserInputType == Enum.UserInputType.Touch then
-                return
-            end
-
-            dragging = false
-            pendingFirstMove = false
-            dragInputType = nil
-            dragInputObject = nil
         end
 
         local pointer = Vector2.new(input.Position.X, input.Position.Y)
@@ -1038,14 +1139,16 @@ function Lib:CreateWindow(config)
             return
         end
 
+        finalizeVisibilityTween()
+
         dragging = true
         pendingFirstMove = true
         dragInputType = input.UserInputType
         dragInputObject = input
         dragStart = pointer
 
-        local pos = wrapper.Position
-        startCenter = Vector2.new(pos.X.Offset, pos.Y.Offset)
+        local position = wrapper.Position
+        startCenter = Vector2.new(position.X.Offset, position.Y.Offset)
     end
 
     local function beginResize(input)
@@ -1062,6 +1165,7 @@ function Lib:CreateWindow(config)
         end
 
         finalizeVisibilityTween()
+        cancelSizeTween()
 
         dragging = false
         pendingFirstMove = false
@@ -1086,6 +1190,7 @@ function Lib:CreateWindow(config)
         end
 
         local point = Vector2.new(input.Position.X, input.Position.Y)
+
         if pointInside(closeButton, point) or pointInside(minButton, point) then
             return
         end
@@ -1093,7 +1198,7 @@ function Lib:CreateWindow(config)
         beginDrag(input)
     end)
 
-    window._resizeBeganConnection = resizeHandle.InputBegan:Connect(function(input)
+    window._resizeBeganConnection = resizeButton.InputBegan:Connect(function(input)
         if closed or not window.Visible or not isPointerInput(input) then
             return
         end
@@ -1121,12 +1226,18 @@ function Lib:CreateWindow(config)
 
             local availableWidth = math.max(
                 160,
-                math.min(view.X - 16, view.X - resizeStartTopLeft.X - 8)
+                math.min(
+                    view.X - 16,
+                    view.X - resizeStartTopLeft.X - 8
+                )
             )
 
             local availableHeight = math.max(
                 140,
-                math.min(view.Y - 16, view.Y - resizeStartTopLeft.Y - 8)
+                math.min(
+                    view.Y - 16,
+                    view.Y - resizeStartTopLeft.Y - 8
+                )
             )
 
             local minW = math.min(380, availableWidth)
@@ -1145,6 +1256,7 @@ function Lib:CreateWindow(config)
             )
 
             wrapper.Size = UDim2.fromOffset(newWidth, newHeight)
+
             wrapper.Position = UDim2.fromOffset(
                 resizeStartTopLeft.X + newWidth / 2,
                 resizeStartTopLeft.Y + newHeight / 2
@@ -1170,13 +1282,14 @@ function Lib:CreateWindow(config)
             if (pointer - dragStart).Magnitude > 150 then
                 dragStart = pointer
 
-                local pos = wrapper.Position
-                startCenter = Vector2.new(pos.X.Offset, pos.Y.Offset)
+                local position = wrapper.Position
+                startCenter = Vector2.new(position.X.Offset, position.Y.Offset)
                 return
             end
         end
 
         local delta = pointer - dragStart
+
         local x, y = clampWindowCenter(
             startCenter.X + delta.X,
             startCenter.Y + delta.Y
@@ -1250,40 +1363,43 @@ function Lib:CreateWindow(config)
             return
         end
 
-        if visibilityTween then
+        if #visibilityTweens > 0 then
             finalizeVisibilityTween()
         end
+
+        cancelSizeTween()
 
         dragging = false
         pendingFirstMove = false
         resizing = false
+
         dragInputType = nil
         resizeInputType = nil
         dragInputObject = nil
         resizeInputObject = nil
 
         if state then
-            resizeHandle.Visible = false
+            resizeButton.Visible = false
             minButton.Text = "+"
         else
-            resizeHandle.Visible = true
+            resizeButton.Visible = true
             minButton.Text = "−"
         end
 
         self.Minimized = state
 
-        local targetSize
-
-        if state then
-            targetSize = UDim2.fromOffset(baseSize.X.Offset, 55)
-        else
-            targetSize = baseSize
-        end
-
         if self.Visible then
-            playTween(wrapper, Ease.Normal, {
-                Size = targetSize,
-            })
+            local targetSize = getDisplayedSize()
+
+            sizeTween = TweenService:Create(
+                wrapper,
+                Ease.Normal,
+                {
+                    Size = targetSize,
+                }
+            )
+
+            sizeTween:Play()
         end
     end
 
@@ -1292,9 +1408,7 @@ function Lib:CreateWindow(config)
             return
         end
 
-        if visibilityTween then
-            finalizeVisibilityTween()
-        end
+        cancelSizeTween()
 
         local view = getViewport()
         local minW = math.min(380, math.max(160, view.X - 24))
@@ -1302,15 +1416,30 @@ function Lib:CreateWindow(config)
         local maxW = math.max(minW, view.X - 16)
         local maxH = math.max(minH, view.Y - 16)
 
-        newWidth = clamp(tonumber(newWidth) or baseSize.X.Offset, minW, maxW)
-        newHeight = clamp(tonumber(newHeight) or baseSize.Y.Offset, minH, maxH)
+        newWidth = clamp(
+            tonumber(newWidth) or baseSize.X.Offset,
+            minW,
+            maxW
+        )
+
+        newHeight = clamp(
+            tonumber(newHeight) or baseSize.Y.Offset,
+            minH,
+            maxH
+        )
 
         baseSize = UDim2.fromOffset(newWidth, newHeight)
 
-        if not self.Minimized and self.Visible then
-            playTween(wrapper, Ease.Normal, {
-                Size = baseSize,
-            })
+        if self.Visible then
+            sizeTween = TweenService:Create(
+                wrapper,
+                Ease.Normal,
+                {
+                    Size = getDisplayedSize(),
+                }
+            )
+
+            sizeTween:Play()
         end
     end
 
@@ -1409,10 +1538,13 @@ function Lib:CreateWindow(config)
 
         local page = Instance.new("ScrollingFrame")
         page.Name = "Page_" .. tostring(name)
+        page.Position = UDim2.new(0, 0, 0, 0)
         page.Size = UDim2.fromScale(1, 1)
         page.BackgroundTransparency = 1
         page.BorderSizePixel = 0
-        page.ScrollBarThickness = 3
+        page.ClipsDescendants = true
+        page.Active = true
+        page.ScrollBarThickness = 4
         page.ScrollBarImageColor3 = accent
         page.CanvasSize = UDim2.new(0, 0, 0, 0)
         page.AutomaticCanvasSize = Enum.AutomaticSize.None
@@ -1424,30 +1556,39 @@ function Lib:CreateWindow(config)
         local pageLayout = applyList(page, 10, Enum.HorizontalAlignment.Left)
         page.Parent = content
 
-        local function updatePageCanvas()
+        local function updateCanvas()
             if not page.Parent then
                 return
             end
 
-            local canvasHeight = pageLayout.AbsoluteContentSize.Y
-                + pagePadding.PaddingTop.Offset
-                + pagePadding.PaddingBottom.Offset
+            local canvasHeight = math.ceil(
+                pageLayout.AbsoluteContentSize.Y
+                    + pagePadding.PaddingTop.Offset
+                    + pagePadding.PaddingBottom.Offset
+            )
 
-            page.CanvasSize = UDim2.fromOffset(0, canvasHeight)
+            page.CanvasSize = UDim2.new(0, 0, 0, canvasHeight)
 
             local maxY = math.max(0, canvasHeight - page.AbsoluteSize.Y)
+
             if page.CanvasPosition.Y > maxY then
                 page.CanvasPosition = Vector2.new(0, maxY)
             end
         end
 
-        pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updatePageCanvas)
-        page:GetPropertyChangedSignal("AbsoluteSize"):Connect(updatePageCanvas)
-        page.ChildAdded:Connect(function()
-            task.defer(updatePageCanvas)
+        pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            task.defer(updateCanvas)
         end)
 
-        task.defer(updatePageCanvas)
+        page:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+            task.defer(updateCanvas)
+        end)
+
+        page.ChildAdded:Connect(function()
+            task.defer(updateCanvas)
+        end)
+
+        task.defer(updateCanvas)
 
         local tab = {
             Button = tabButton,
@@ -1494,6 +1635,7 @@ function Lib:CreateWindow(config)
     end
 
     Shared.MikuLibInstance = window
+
     return window
 end
 
@@ -1738,6 +1880,7 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
         fill.Size = UDim2.new(alpha, 0, 1, 0)
 
         local numberText
+
         if math.abs(value - math.floor(value)) < 0.001 then
             numberText = string.format("%.0f", value)
         else
@@ -1748,9 +1891,13 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
     end
 
     local function set(newValue, fireCallback)
-        local newNumber = clamp(tonumber(newValue) or minimum, minimum, maximum)
-        local changed = newNumber ~= value
+        local newNumber = clamp(
+            tonumber(newValue) or minimum,
+            minimum,
+            maximum
+        )
 
+        local changed = newNumber ~= value
         value = newNumber
         render()
 
@@ -1761,6 +1908,7 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
 
     local function updateFromX(x)
         local trackWidth = track.AbsoluteSize.X
+
         if trackWidth <= 0 then
             return
         end
@@ -2025,6 +2173,7 @@ function Lib:CreateDropdown(parent, text, options, callback)
     list.AutomaticCanvasSize = Enum.AutomaticSize.Y
     list.ScrollBarThickness = 3
     list.ScrollBarImageColor3 = accent
+    list.ScrollingDirection = Enum.ScrollingDirection.Y
     list.Visible = false
     list.Active = true
     list.ZIndex = 500
@@ -2052,8 +2201,10 @@ function Lib:CreateDropdown(parent, text, options, callback)
             positionConnection = nil
         end
 
-        list.Visible = false
-        arrow.Text = "▾"
+        pcall(function()
+            list.Visible = false
+            arrow.Text = "▾"
+        end)
 
         if activeDropdownClose == closeList then
             activeDropdownClose = nil
@@ -2076,6 +2227,7 @@ function Lib:CreateDropdown(parent, text, options, callback)
             6,
             math.max(6, viewportSize.X - listWidth - 6)
         )
+
         local y = rowPosition.Y + rowSize.Y + 4
 
         if y + listHeight > viewportSize.Y - 6 then
@@ -2244,10 +2396,12 @@ end
 function Lib:Notify(config)
     config = config or {}
 
-    local title = config.Title or "Miku"
-    local text = config.Text or ""
+    local title = tostring(config.Title or "Miku")
+    local text = tostring(config.Text or "")
     local duration = math.max(0.2, tonumber(config.Duration) or 3)
-    local color = config.Color or Theme.Accent
+    local color = typeof(config.Color) == "Color3"
+        and config.Color
+        or Theme.Accent
 
     local gui = Instance.new("ScreenGui")
     gui.Name = "MikuNotify"
@@ -2270,7 +2424,7 @@ function Lib:Notify(config)
     shadow.Position = UDim2.fromScale(0.5, 0.5)
     shadow.Size = UDim2.new(1, 14, 1, 14)
     shadow.BackgroundColor3 = Color3.new(0, 0, 0)
-    shadow.BackgroundTransparency = 1
+    shadow.BackgroundTransparency = 0.55
     shadow.BorderSizePixel = 0
     shadow.ZIndex = 0
     applyCorner(shadow)
@@ -2302,7 +2456,7 @@ function Lib:Notify(config)
     titleLabel.TextSize = 14
     titleLabel.TextColor3 = Theme.Text
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    titleLabel.Text = tostring(title)
+    titleLabel.Text = title
     titleLabel.ZIndex = 2
     titleLabel.Parent = holder
 
@@ -2315,7 +2469,7 @@ function Lib:Notify(config)
     description.TextColor3 = Theme.TextDim
     description.TextXAlignment = Enum.TextXAlignment.Left
     description.TextTruncate = Enum.TextTruncate.AtEnd
-    description.Text = tostring(text)
+    description.Text = text
     description.ZIndex = 2
     description.Parent = holder
 
@@ -2381,7 +2535,9 @@ end
 function Lib:CreateWatermark(config)
     config = config or {}
 
-    local accent = config.Accent or Theme.Accent
+    local accent = typeof(config.Accent) == "Color3"
+        and config.Accent
+        or Theme.Accent
 
     local gui = Instance.new("ScreenGui")
     gui.Name = config.Name or "MikuWatermark"
@@ -2522,6 +2678,12 @@ function Lib:DestroyAll()
 
     for _, entry in ipairs(table.clone(notificationEntries)) do
         entry.closed = true
+
+        if entry.gui then
+            pcall(function()
+                entry.gui:Destroy()
+            end)
+        end
     end
 
     table.clear(notificationEntries)
