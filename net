@@ -623,28 +623,43 @@ function Window:Destroy()
 	if self._destroyed then
 		return
 	end
+
 	self._destroyed = true
 	self._visible = false
+
+	if self._resizeApi then
+		pcall(function()
+			self._resizeApi.Destroy()
+		end)
+		self._resizeApi = nil
+	end
+
 	if self._dragApi then
 		pcall(function()
 			self._dragApi.Destroy()
 		end)
 		self._dragApi = nil
 	end
+
 	if self._keybindConnection then
 		self._keybindConnection:Disconnect()
 		self._keybindConnection = nil
 	end
+
 	self:_cancelTweens()
+
 	for index = #Lib.Windows, 1, -1 do
 		if Lib.Windows[index] == self then
 			table.remove(Lib.Windows, index)
 		end
 	end
+
 	local sharedTable = getShared(false)
+
 	if sharedTable and sharedTable.MikuLibInstance == self then
 		sharedTable.MikuLibInstance = nil
 	end
+
 	if self._screenGui then
 		self._screenGui:Destroy()
 		self._screenGui = nil
@@ -742,11 +757,13 @@ function Lib.newResize(target, callback)
 			local delta = mouse - startMouse
 			local viewport = getViewport()
 
-			local maxWidth = math.max(360, viewport.X - 20)
-			local maxHeight = math.max(240, viewport.Y - 20)
+			local maxWidth = math.max(320, viewport.X - 40)
+			local maxHeight = math.max(240, viewport.Y - 40)
+			local minWidth = math.min(360, maxWidth)
+			local minHeight = math.min(240, maxHeight)
 
-			local width = math.clamp(startSize.X + delta.X, 360, maxWidth)
-			local height = math.clamp(startSize.Y + delta.Y, 240, maxHeight)
+			local width = math.clamp(startSize.X + delta.X, minWidth, maxWidth)
+			local height = math.clamp(startSize.Y + delta.Y, minHeight, maxHeight)
 
 			target.Size = UDim2.fromOffset(width, height)
 
@@ -787,7 +804,6 @@ function Lib:CreateWindow(config)
 	self._tabs = {}
 	self._visible = false
 	self._minimized = false
-    self._wrapper = wrapper
 	self._animToken = 0
 	self._destroyed = false
 	local viewport = getViewport()
@@ -1066,16 +1082,21 @@ function Lib:CreateWindow(config)
 		BorderSizePixel = 0,
 		ClipsDescendants = true
 	}, root)
-    self._resizeApi = Lib.newResize(wrapper, function(width, height)
-	self._baseSize = Vector2.new(width, height)
-
-	for _, entry in ipairs(self._tabs) do
-		refreshPage(entry.Page)
-	end
-
-	self:ClampPosition()
-end)
 	self._content = content
+
+	self._resizeApi = Lib.newResize(wrapper, function(width, height)
+		if self._destroyed then
+			return
+		end
+
+		self._baseSize = Vector2.new(width, height)
+
+		for _, entry in ipairs(self._tabs) do
+			refreshPage(entry.Page)
+		end
+
+		self:ClampPosition()
+	end)
 	self:SetTitle(config.Title or "MikuLib", config.Subtitle or ("v" .. Lib.Version))
 	self:SetProfile({
 		Name = LocalPlayer.DisplayName or LocalPlayer.Name,
@@ -1117,8 +1138,6 @@ end)
 	end
 	return self
 end
-
-
 function Lib:CreateSection(parent, text)
 	local section, page = prepareControl(parent, 26, "Frame")
 	local label = make("TextLabel", {
@@ -1793,11 +1812,6 @@ function Lib:CreateWatermark(text)
 	end
 	table.insert(Lib._watermarks, api)
 	return api
-end
-
-if self._resizeApi then
-	self._resizeApi.Destroy()
-	self._resizeApi = nil
 end
 
 function Lib:DestroyAll()
