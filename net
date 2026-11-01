@@ -1911,128 +1911,185 @@ function Lib:Notify(config)
     return gui
 end
 
-function Lib:CreateWatermark(config)
-    config = config or {}
+if type(Lib.CreateWatermark) ~= "function" then
+    function Lib:CreateWatermark(config)
+        config = type(config) == "table" and config or {}
 
-    local accent = config.Accent or Theme.Accent
-    local width = math.max(120, tonumber(config.Width) or 230)
-    local height = math.max(26, tonumber(config.Height) or 34)
+        local Players = game:GetService("Players")
+        local player = Players.LocalPlayer
+        local theme = self.Theme or {}
 
-    local gui = Instance.new("ScreenGui")
-    gui.Name = "MikuWatermark"
-    gui.ResetOnSpawn = false
-    gui.IgnoreGuiInset = true
-    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    gui.DisplayOrder = tonumber(config.DisplayOrder) or 10001
-    attachGui(gui)
+        local accent = config.Accent
+            or theme.Accent
+            or Color3.fromRGB(139, 108, 255)
 
-    local frame = Instance.new("Frame")
-    frame.Name = "Watermark"
-    frame.AnchorPoint = config.AnchorPoint or Vector2.new(0, 0)
-    frame.Position = config.Position or UDim2.fromOffset(16, 16)
+        local gui = Instance.new("ScreenGui")
+        gui.Name = "MikuWatermark"
+        gui.ResetOnSpawn = false
+        gui.IgnoreGuiInset = true
+        gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        gui.DisplayOrder = tonumber(config.DisplayOrder) or 10001
 
-    if typeof(config.Size) == "UDim2" then
-        frame.Size = config.Size
-    else
-        frame.Size = UDim2.fromOffset(width, height)
-    end
+        -- Tenta usar gethui; se não estiver disponível, usa PlayerGui.
+        local attached = false
 
-    frame.BackgroundColor3 = config.BackgroundColor or Theme.Surface
-    frame.BackgroundTransparency = clamp(
-        tonumber(config.BackgroundTransparency) or 0.08,
-        0,
-        1
-    )
-    frame.BorderSizePixel = 0
-    frame.Active = config.Draggable == true
-    applyCorner(frame, 9)
-    local stroke = applyStroke(frame, accent, 1, 0.25)
-    frame.Parent = gui
+        local ok, hui = pcall(function()
+            if type(gethui) == "function" then
+                return gethui()
+            end
+        end)
 
-    local accentBar = Instance.new("Frame")
-    accentBar.Name = "Accent"
-    accentBar.Size = UDim2.new(0, 3, 1, -14)
-    accentBar.Position = UDim2.new(0, 8, 0, 7)
-    accentBar.BackgroundColor3 = accent
-    accentBar.BorderSizePixel = 0
-    accentBar.ZIndex = 2
-    applyCorner(accentBar, 2)
-    accentBar.Parent = frame
-
-    local label = Instance.new("TextLabel")
-    label.Name = "Text"
-    label.BackgroundTransparency = 1
-    label.Position = UDim2.new(0, 18, 0, 0)
-    label.Size = UDim2.new(1, -26, 1, 0)
-    label.Font = Theme.FontBold
-    label.TextSize = tonumber(config.TextSize) or 12
-    label.TextColor3 = config.TextColor or Theme.Text
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.TextYAlignment = Enum.TextYAlignment.Center
-    label.TextTruncate = Enum.TextTruncate.AtEnd
-    label.Text = tostring(config.Text or ("Miku | " .. LocalPlayer.Name))
-    label.ZIndex = 2
-    label.Parent = frame
-
-    local dragCleanup
-
-    if config.Draggable == true then
-        dragCleanup = Lib.newDraggable(frame, frame)
-    end
-
-    local watermark = {
-        Gui = gui,
-        Frame = frame,
-        Label = label,
-        Stroke = stroke,
-    }
-
-    local destroyed = false
-
-    local function cleanup()
-        if dragCleanup then
-            dragCleanup()
-            dragCleanup = nil
-        end
-    end
-
-    gui.Destroying:Connect(function()
-        destroyed = true
-        cleanup()
-    end)
-
-    function watermark:SetText(text)
-        if not destroyed then
-            label.Text = tostring(text or "")
-        end
-    end
-
-    function watermark:SetVisible(state)
-        if not destroyed then
-            gui.Enabled = state and true or false
-        end
-    end
-
-    function watermark:SetAccent(color)
-        if destroyed or typeof(color) ~= "Color3" then
-            return
+        if ok and hui then
+            attached = pcall(function()
+                gui.Parent = hui
+            end)
         end
 
-        accentBar.BackgroundColor3 = color
-        stroke.Color = color
-    end
-
-    function watermark:Destroy()
-        if destroyed then
-            return
+        if not attached and player then
+            attached = pcall(function()
+                gui.Parent = player:WaitForChild("PlayerGui")
+            end)
         end
 
-        destroyed = true
-        cleanup()
-        gui:Destroy()
-    end
+        if not attached then
+            pcall(function()
+                gui.Parent = game:GetService("CoreGui")
+            end)
+        end
 
-    return watermark
+        local frame = Instance.new("Frame")
+        frame.Name = "Watermark"
+
+        if typeof(config.Size) == "UDim2" then
+            frame.Size = config.Size
+        else
+            frame.Size = UDim2.fromOffset(
+                math.max(120, tonumber(config.Width) or 230),
+                math.max(26, tonumber(config.Height) or 34)
+            )
+        end
+
+        frame.AnchorPoint = config.AnchorPoint or Vector2.new(0, 0)
+        frame.Position = config.Position or UDim2.fromOffset(16, 16)
+        frame.BackgroundColor3 = config.BackgroundColor or theme.Surface
+            or Color3.fromRGB(20, 20, 26)
+
+        local transparency = tonumber(config.BackgroundTransparency) or 0.08
+        frame.BackgroundTransparency = math.max(0, math.min(1, transparency))
+        frame.BorderSizePixel = 0
+        frame.Active = config.Draggable == true
+        frame.ZIndex = 1
+        frame.Parent = gui
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 9)
+        corner.Parent = frame
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = accent
+        stroke.Thickness = 1
+        stroke.Transparency = 0.25
+        stroke.Parent = frame
+
+        local accentBar = Instance.new("Frame")
+        accentBar.Name = "Accent"
+        accentBar.Size = UDim2.new(0, 3, 1, -14)
+        accentBar.Position = UDim2.new(0, 8, 0, 7)
+        accentBar.BackgroundColor3 = accent
+        accentBar.BorderSizePixel = 0
+        accentBar.ZIndex = 2
+        accentBar.Parent = frame
+
+        local barCorner = Instance.new("UICorner")
+        barCorner.CornerRadius = UDim.new(0, 2)
+        barCorner.Parent = accentBar
+
+        local label = Instance.new("TextLabel")
+        label.Name = "Text"
+        label.BackgroundTransparency = 1
+        label.Position = UDim2.new(0, 18, 0, 0)
+        label.Size = UDim2.new(1, -26, 1, 0)
+        label.Font = config.Font or theme.FontBold or Enum.Font.GothamBold
+        label.TextSize = tonumber(config.TextSize) or 12
+        label.TextColor3 = config.TextColor
+            or theme.Text
+            or Color3.fromRGB(245, 245, 252)
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.TextYAlignment = Enum.TextYAlignment.Center
+        label.TextTruncate = Enum.TextTruncate.AtEnd
+        label.Text = tostring(
+            config.Text or ("Miku | " .. (player and player.Name or "Player"))
+        )
+        label.ZIndex = 2
+        label.Parent = frame
+
+        local dragCleanup
+
+        if config.Draggable == true
+            and type(self.newDraggable) == "function" then
+            local dragOk, cleanup = pcall(function()
+                return self.newDraggable(frame, frame)
+            end)
+
+            if dragOk and type(cleanup) == "function" then
+                dragCleanup = cleanup
+            end
+        end
+
+        local destroyed = false
+
+        local function stopDragging()
+            if dragCleanup then
+                local cleanup = dragCleanup
+                dragCleanup = nil
+                pcall(cleanup)
+            end
+        end
+
+        gui.Destroying:Connect(function()
+            destroyed = true
+            stopDragging()
+        end)
+
+        local watermark = {
+            Gui = gui,
+            Frame = frame,
+            Label = label,
+        }
+
+        function watermark:SetText(text)
+            if not destroyed then
+                label.Text = tostring(text or "")
+            end
+        end
+
+        function watermark:SetVisible(state)
+            if not destroyed then
+                gui.Enabled = state and true or false
+            end
+        end
+
+        function watermark:SetAccent(color)
+            if destroyed or typeof(color) ~= "Color3" then
+                return
+            end
+
+            accentBar.BackgroundColor3 = color
+            stroke.Color = color
+        end
+
+        function watermark:Destroy()
+            if destroyed then
+                return
+            end
+
+            destroyed = true
+            stopDragging()
+            gui:Destroy()
+        end
+
+        return watermark
+    end
 end
 
 return Lib
