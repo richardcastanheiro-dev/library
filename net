@@ -1,3 +1,4 @@
+
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
@@ -307,6 +308,7 @@ function Lib.newDraggable(target, handle, isLocked)
     end
 
     local dragging = false
+    local pendingFirstMove = false
     local dragInputType
     local dragInputObject
     local dragStart
@@ -323,6 +325,7 @@ function Lib.newDraggable(target, handle, isLocked)
 
     local function stopDragging()
         dragging = false
+        pendingFirstMove = false
         dragInputType = nil
         dragInputObject = nil
 
@@ -374,9 +377,29 @@ function Lib.newDraggable(target, handle, isLocked)
             return
         end
 
-        stopDragging()
+        if dragging then
+            if dragInputType == Enum.UserInputType.Touch
+                and input.UserInputType == Enum.UserInputType.Touch then
+                return
+            end
+
+            dragging = false
+            dragInputType = nil
+            dragInputObject = nil
+        end
+
+        if changedConnection then
+            changedConnection:Disconnect()
+            changedConnection = nil
+        end
+
+        if endedConnection then
+            endedConnection:Disconnect()
+            endedConnection = nil
+        end
 
         dragging = true
+        pendingFirstMove = true
         dragInputType = input.UserInputType
         dragInputObject = input
         dragStart = Vector2.new(input.Position.X, input.Position.Y)
@@ -399,6 +422,16 @@ function Lib.newDraggable(target, handle, isLocked)
                 changedInput.Position.X,
                 changedInput.Position.Y
             )
+
+            if pendingFirstMove then
+                pendingFirstMove = false
+
+                if (pointer - dragStart).Magnitude > 150 then
+                    dragStart = pointer
+                    return
+                end
+            end
+
             local delta = pointer - dragStart
 
             target.Position = UDim2.new(
@@ -725,6 +758,7 @@ function Lib:CreateWindow(config)
 
     local closed = false
     local dragging = false
+    local pendingFirstMove = false
     local resizing = false
     local dragInputType
     local resizeInputType
@@ -752,14 +786,41 @@ function Lib:CreateWindow(config)
         return clamp(x, minX, maxX), clamp(y, minY, maxY)
     end
 
+    local function finalizeVisibilityTween()
+        if not visibilityTween then
+            return
+        end
+
+        local tween = visibilityTween
+        visibilityTween = nil
+        pcall(function()
+            tween:Cancel()
+        end)
+
+        wrapper.Rotation = 0
+
+        if window.Visible then
+            wrapper.Visible = true
+
+            if window.Minimized then
+                wrapper.Size = UDim2.fromOffset(baseSize.X.Offset, 55)
+            else
+                wrapper.Size = baseSize
+            end
+        else
+            wrapper.Visible = false
+            wrapper.Size = UDim2.fromOffset(0, 0)
+        end
+    end
+
     local function cleanupInputConnections()
         dragging = false
+        pendingFirstMove = false
         resizing = false
         dragInputType = nil
         resizeInputType = nil
         dragInputObject = nil
         resizeInputObject = nil
-
 
         if window._inputChangedConnection then
             window._inputChangedConnection:Disconnect()
@@ -775,7 +836,8 @@ function Lib:CreateWindow(config)
             window._keybindConnection:Disconnect()
             window._keybindConnection = nil
         end
-                if window._windowDragBeganConnection then
+
+        if window._windowDragBeganConnection then
             window._windowDragBeganConnection:Disconnect()
             window._windowDragBeganConnection = nil
         end
@@ -841,6 +903,7 @@ function Lib:CreateWindow(config)
 
         if not state then
             dragging = false
+            pendingFirstMove = false
             resizing = false
             dragInputType = nil
             resizeInputType = nil
@@ -944,12 +1007,26 @@ function Lib:CreateWindow(config)
     window.Close = closeWindow
 
     local function beginDrag(input)
-        if closed or resizing or dragging or not window.Visible or not wrapper.Visible then
+        if closed or resizing or not window.Visible or not wrapper.Visible then
             return
         end
 
+        finalizeVisibilityTween()
+
         if not isPointerInput(input) then
             return
+        end
+
+        if dragging then
+            if dragInputType == Enum.UserInputType.Touch
+                and input.UserInputType == Enum.UserInputType.Touch then
+                return
+            end
+
+            dragging = false
+            pendingFirstMove = false
+            dragInputType = nil
+            dragInputObject = nil
         end
 
         local pointer = Vector2.new(input.Position.X, input.Position.Y)
@@ -960,17 +1037,13 @@ function Lib:CreateWindow(config)
         end
 
         dragging = true
+        pendingFirstMove = true
         dragInputType = input.UserInputType
         dragInputObject = input
         dragStart = pointer
 
-        local absolutePosition = wrapper.AbsolutePosition
-        local absoluteSize = wrapper.AbsoluteSize
-
-        startCenter = Vector2.new(
-            absolutePosition.X + absoluteSize.X / 2,
-            absolutePosition.Y + absoluteSize.Y / 2
-        )
+        local pos = wrapper.Position
+        startCenter = Vector2.new(pos.X.Offset, pos.Y.Offset)
     end
 
     local function beginResize(input)
@@ -978,11 +1051,21 @@ function Lib:CreateWindow(config)
             return
         end
 
+        finalizeVisibilityTween()
+
         if not isPointerInput(input) then
             return
         end
 
+        if resizing then
+            if resizeInputType == Enum.UserInputType.Touch
+                and input.UserInputType == Enum.UserInputType.Touch then
+                return
+            end
+        end
+
         dragging = false
+        pendingFirstMove = false
         dragInputType = nil
         dragInputObject = nil
 
@@ -1002,7 +1085,6 @@ function Lib:CreateWindow(config)
         if UserInputService:GetFocusedTextBox() or activeDropdownClose then
             return
         end
-
 
         local point = Vector2.new(input.Position.X, input.Position.Y)
         if pointInside(closeButton, point) or pointInside(minButton, point) then
@@ -1069,6 +1151,19 @@ function Lib:CreateWindow(config)
         end
 
         local pointer = Vector2.new(input.Position.X, input.Position.Y)
+
+        if pendingFirstMove then
+            pendingFirstMove = false
+
+            if (pointer - dragStart).Magnitude > 150 then
+                dragStart = pointer
+
+                local pos = wrapper.Position
+                startCenter = Vector2.new(pos.X.Offset, pos.Y.Offset)
+                return
+            end
+        end
+
         local delta = pointer - dragStart
         local x, y = clampWindowCenter(
             startCenter.X + delta.X,
@@ -1094,6 +1189,7 @@ function Lib:CreateWindow(config)
 
         if dragging and matchesPointerEnd(dragInputType, dragInputObject, input) then
             dragging = false
+            pendingFirstMove = false
             dragInputType = nil
             dragInputObject = nil
         end
@@ -1111,6 +1207,7 @@ function Lib:CreateWindow(config)
         end
 
         dragging = false
+        pendingFirstMove = false
         resizing = false
         dragInputType = nil
         resizeInputType = nil
