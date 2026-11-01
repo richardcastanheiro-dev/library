@@ -1907,6 +1907,10 @@ function Lib:Notify(config)
         end)
     end)
 
+
+    return gui
+end
+
 function Lib:CreateWatermark(config)
     config = config or {}
 
@@ -2029,9 +2033,6 @@ function Lib:CreateWatermark(config)
     end
 
     return watermark
-end
-
-    return gui
 end
 
 return Lib
