@@ -1,4 +1,3 @@
-
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -6,7 +5,7 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local Lib = {}
-Lib.Version = "6.5.0"
+Lib.Version = "6.5.1"
 Lib.Windows = {}
 Lib._watermarks = {}
 Lib._dialogs = {}
@@ -1243,10 +1242,6 @@ function Lib:CreateWindow(config)
 	return self
 end
 
-function Lib:Window(cfg)
-	return self:CreateWindow(cfg)
-end
-
 function Lib:CreateSection(parent, text)
 	if type(text) == "table" then
 		text = text.Title or text.Name or text.Text
@@ -1322,7 +1317,7 @@ function Lib:CreateParagraph(parent, text, content)
 		}, frame)
 		yOffset = 20
 	end
-	local body = make("TextLabel", {
+	make("TextLabel", {
 		Name = "Content",
 		Position = UDim2.fromOffset(0, yOffset),
 		Size = UDim2.new(1, 0, 0, 0),
@@ -1629,10 +1624,9 @@ function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callba
 	end
 	local height = description and 66 or 52
 	local frame, page = prepareControl(parent, height, "Frame")
-	local labelY = 0
 	make("TextLabel", {
 		Name = "Label",
-		Position = UDim2.fromOffset(0, labelY),
+		Position = UDim2.fromOffset(0, 0),
 		Size = UDim2.new(1, -90, 0, 18),
 		BackgroundTransparency = 1,
 		Text = title,
@@ -1645,7 +1639,7 @@ function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callba
 	}, frame)
 	local valueLabel = make("TextLabel", {
 		Name = "Value",
-		Position = UDim2.new(1, -90, 0, labelY),
+		Position = UDim2.new(1, -90, 0, 0),
 		Size = UDim2.fromOffset(90, 18),
 		BackgroundTransparency = 1,
 		Text = "",
@@ -1831,7 +1825,7 @@ function Lib:CreateTextBox(parent, text, placeholder, defaultValue, callback)
 		PaddingLeft = UDim.new(0, 8),
 		PaddingRight = UDim.new(0, 8)
 	}, box)
-	local function enterFocused()
+	box.Focused:Connect(function()
 		TweenService:Create(box, Fast, {
 			BackgroundTransparency = 0
 		}):Play()
@@ -1839,8 +1833,8 @@ function Lib:CreateTextBox(parent, text, placeholder, defaultValue, callback)
 			Color = Theme.Accent,
 			Transparency = 0.3
 		}):Play()
-	end
-	local function enterBlurred()
+	end)
+	box.FocusLost:Connect(function()
 		TweenService:Create(box, Fast, {
 			BackgroundTransparency = 0.08
 		}):Play()
@@ -1848,10 +1842,6 @@ function Lib:CreateTextBox(parent, text, placeholder, defaultValue, callback)
 			Color = Theme.Stroke,
 			Transparency = 0.4
 		}):Play()
-	end
-	box.Focused:Connect(enterFocused)
-	box.FocusLost:Connect(function()
-		enterBlurred()
 		safeCall(callback, box.Text)
 	end)
 	refreshPage(page)
@@ -2213,30 +2203,23 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 	local function updateDropdownUI()
 		valueLabel.Text = valueString()
 		control:SetAttribute("MikuValue", valueLabel.Text)
-		if multi then
-			for optBtn, optValue in pairs(optionButtons) do
-				local isSel = false
+		for optBtn, optValue in pairs(optionButtons) do
+			local isSel = false
+			if multi then
 				for _, v in ipairs(selected) do
 					if v == optValue then
 						isSel = true
 						break
 					end
 				end
-				local check = optBtn:FindFirstChild("Check")
-				if check then
-					check.Visible = isSel
-				end
-				optBtn.BackgroundTransparency = isSel and 0.65 or 1
+			else
+				isSel = (optValue == selected)
 			end
-		else
-			for optBtn, optValue in pairs(optionButtons) do
-				local isSel = (optValue == selected)
-				local check = optBtn:FindFirstChild("Check")
-				if check then
-					check.Visible = isSel
-				end
-				optBtn.BackgroundTransparency = isSel and 0.65 or 1
+			local check = optBtn:FindFirstChild("Check")
+			if check then
+				check.Visible = isSel
 			end
+			optBtn.BackgroundTransparency = isSel and 0.65 or 1
 		end
 	end
 	for index, option in ipairs(optionList) do
@@ -2260,7 +2243,7 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 			PaddingLeft = UDim.new(0, 8),
 			PaddingRight = UDim.new(0, 8)
 		}, optionButton)
-		local check = make("TextLabel", {
+		make("TextLabel", {
 			Name = "Check",
 			AnchorPoint = Vector2.new(1, 0.5),
 			Position = UDim2.new(1, -6, 0.5, 0),
@@ -2520,9 +2503,14 @@ function TabMethods:Dropdown(cfg)
 end
 
 function TabMethods:DropdownMulti(cfg)
-	cfg = type(cfg) == "table" and cfg or {}
-	cfg.Multi = true
-	return Lib:CreateDropdown(self.Page, cfg)
+	local copy = {}
+	if type(cfg) == "table" then
+		for k, v in pairs(cfg) do
+			copy[k] = v
+		end
+	end
+	copy.Multi = true
+	return Lib:CreateDropdown(self.Page, copy)
 end
 
 function TabMethods:Button(cfg)
@@ -2771,7 +2759,7 @@ function Lib:Dialog(config)
 	}, card)
 	local content = config.Content or config.Text or config.Body or ""
 	if content ~= "" then
-		local bodyLabel = make("TextLabel", {
+		make("TextLabel", {
 			Size = UDim2.new(1, 0, 0, 0),
 			AutomaticSize = Enum.AutomaticSize.Y,
 			BackgroundTransparency = 1,
@@ -2983,6 +2971,10 @@ end
 
 function Lib:Destroy()
 	self:DestroyAll()
+end
+
+function Lib:Window(cfg)
+	return self:CreateWindow(cfg)
 end
 
 function Lib.new(a, b)
