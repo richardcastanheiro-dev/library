@@ -146,7 +146,8 @@ local function applyList(instance, spacing, horizontalAlignment)
     layout.FillDirection = Enum.FillDirection.Vertical
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Padding = UDim.new(0, spacing or 8)
-    layout.HorizontalAlignment = horizontalAlignment or Enum.HorizontalAlignment.Left
+    layout.HorizontalAlignment =
+        horizontalAlignment or Enum.HorizontalAlignment.Left
     layout.Parent = instance
     return layout
 end
@@ -201,7 +202,8 @@ local function normalizeKeybind(value, useDefault)
     end
 
     if typeof(value) == "EnumItem" then
-        if value.EnumType == Enum.KeyCode and value ~= Enum.KeyCode.Unknown then
+        if value.EnumType == Enum.KeyCode
+            and value ~= Enum.KeyCode.Unknown then
             return value
         end
 
@@ -385,11 +387,18 @@ function Lib.newDraggable(target, handle, isLocked)
                 return
             end
 
-            if not matchesPointerMove(dragInputType, dragInputObject, changedInput) then
+            if not matchesPointerMove(
+                dragInputType,
+                dragInputObject,
+                changedInput
+            ) then
                 return
             end
 
-            local pointer = Vector2.new(changedInput.Position.X, changedInput.Position.Y)
+            local pointer = Vector2.new(
+                changedInput.Position.X,
+                changedInput.Position.Y
+            )
             local delta = pointer - dragStart
 
             target.Position = UDim2.new(
@@ -401,7 +410,12 @@ function Lib.newDraggable(target, handle, isLocked)
         end)
 
         endedConnection = UserInputService.InputEnded:Connect(function(endedInput)
-            if dragging and matchesPointerEnd(dragInputType, dragInputObject, endedInput) then
+            if dragging
+                and matchesPointerEnd(
+                    dragInputType,
+                    dragInputObject,
+                    endedInput
+                ) then
                 stopDragging()
             end
         end)
@@ -453,7 +467,7 @@ function Lib:CreateWindow(config)
     wrapper.AnchorPoint = Vector2.new(0.5, 0.5)
     wrapper.Position = UDim2.fromOffset(viewport.X / 2, viewport.Y / 2)
     wrapper.Size = baseSize
-    wrapper.BackgroundTransparency = 0
+    wrapper.BackgroundTransparency = 1
     wrapper.BorderSizePixel = 0
     wrapper.ClipsDescendants = false
     wrapper.Parent = gui
@@ -493,7 +507,7 @@ function Lib:CreateWindow(config)
     shadow.Position = UDim2.fromScale(0.5, 0.5)
     shadow.Size = UDim2.new(1, 18, 1, 18)
     shadow.BackgroundColor3 = Color3.new(0, 0, 0)
-    shadow.Backgroundy = 1
+    shadow.BackgroundTransparency = 1
     shadow.BorderSizePixel = 0
     shadow.ZIndex = 0
     applyCorner(shadow)
@@ -502,8 +516,8 @@ function Lib:CreateWindow(config)
     local root = Instance.new("Frame")
     root.Name = "Root"
     root.Size = UDim2.fromScale(1, 1)
-root.BackgroundColor3 = Theme.Bg
-root.BackgroundTransparency = 0
+    root.BackgroundColor3 = Theme.Bg
+    root.BackgroundTransparency = 0
     root.ClipsDescendants = true
     root.ZIndex = 1
     applyCorner(root, 14)
@@ -513,7 +527,7 @@ root.BackgroundTransparency = 0
     local topBar = Instance.new("Frame")
     topBar.Name = "TopBar"
     topBar.Size = UDim2.new(1, 0, 0, 54)
-    topBar.Backgroundy = 1
+    topBar.BackgroundTransparency = 1
     topBar.BorderSizePixel = 0
     topBar.Active = true
     topBar.ZIndex = 2
@@ -530,7 +544,7 @@ root.BackgroundTransparency = 0
     accentBar.Parent = topBar
 
     local titleLabel = Instance.new("TextLabel")
-    titleLabel.Backgroundy = 1
+    titleLabel.BackgroundTransparency = 1
     titleLabel.Size = UDim2.new(0, 300, 0, 20)
     titleLabel.Position = UDim2.new(0, 32, 0, 10)
     titleLabel.Font = Theme.FontBold
@@ -542,7 +556,7 @@ root.BackgroundTransparency = 0
     titleLabel.Parent = topBar
 
     local subtitleLabel = Instance.new("TextLabel")
-    subtitleLabel.Backgroundy = 1
+    subtitleLabel.BackgroundTransparency = 1
     subtitleLabel.Size = UDim2.new(0, 300, 0, 16)
     subtitleLabel.Position = UDim2.new(0, 32, 0, 29)
     subtitleLabel.Font = Theme.Font
@@ -585,29 +599,28 @@ root.BackgroundTransparency = 0
     local closeStroke = applyStroke(closeButton, Theme.Stroke, 1, 0.4)
     closeButton.Parent = topBar
 
-closeButton.MouseEnter:Connect(function()
-    playTween(closeButton, Ease.Fast, {
-        BackgroundColor3 = Theme.Danger,
-        TextColor3 = Theme.Text,
-    })
+    closeButton.MouseEnter:Connect(function()
+        playTween(closeButton, Ease.Fast, {
+            BackgroundColor3 = Theme.Danger,
+            TextColor3 = Theme.Text,
+        })
 
-    playTween(closeStroke, Ease.Fast, {
-        Color = Theme.Danger,
-        Transparency = 0.1,
-    })
-end)
+        playTween(closeStroke, Ease.Fast, {
+            Color = Theme.Danger,
+            Transparency = 0.1,
+        })
+    end)
 
-closeButton.MouseLeave:Connect(function()
-    playTween(closeButton, Ease.Fast, {
-        BackgroundColor3 = Theme.SurfaceAlt,
-        TextColor3 = Theme.TextDim,
-    })
+    closeButton.MouseLeave:Connect(function()
+        playTween(closeButton, Ease.Fast, {
+            BackgroundColor3 = Theme.SurfaceAlt,
+            TextColor3 = Theme.TextDim,
+        })
 
-    playTween(closeStroke, Ease.Fast, {
-        Color = Theme.Stroke,
-        Transparency = 0.4,
-    })
-end)
+        playTween(closeStroke, Ease.Fast, {
+            Color = Theme.Stroke,
+            Transparency = 0.4,
+        })
     end)
 
     minButton.MouseEnter:Connect(function()
@@ -628,7 +641,7 @@ end)
     divider.Size = UDim2.new(1, -32, 0, 1)
     divider.Position = UDim2.new(0, 16, 0, 54)
     divider.BackgroundColor3 = Theme.Stroke
-    divider.Backgroundy = 0.5
+    divider.BackgroundTransparency = 0.5
     divider.BorderSizePixel = 0
     divider.ZIndex = 2
     divider.Parent = root
@@ -638,7 +651,7 @@ end)
     sidebar.Size = UDim2.new(0, 150, 1, -55)
     sidebar.Position = UDim2.new(0, 0, 0, 55)
     sidebar.BackgroundColor3 = Theme.Surface
-    sidebar.Backgroundy = 0
+    sidebar.BackgroundTransparency = 1
     sidebar.BorderSizePixel = 0
     sidebar.ZIndex = 2
     applyPadding(sidebar, 8, 8, 10, 10)
@@ -649,7 +662,7 @@ end)
     sidebarDivider.Size = UDim2.new(0, 1, 1, -70)
     sidebarDivider.Position = UDim2.new(0, 150, 0, 55)
     sidebarDivider.BackgroundColor3 = Theme.Stroke
-    sidebarDivider.Backgroundy = 0.6
+    sidebarDivider.BackgroundTransparency = 0.6
     sidebarDivider.BorderSizePixel = 0
     sidebarDivider.ZIndex = 2
     sidebarDivider.Parent = root
@@ -658,7 +671,7 @@ end)
     content.Name = "Content"
     content.Size = UDim2.new(1, -151, 1, -55)
     content.Position = UDim2.new(0, 151, 0, 55)
-    content.Backgroundy = 1
+    content.BackgroundTransparency = 1
     content.BorderSizePixel = 0
     content.ZIndex = 2
     applyPadding(content, 14, 14, 14, 14)
@@ -669,7 +682,7 @@ end)
     resizeHandle.AnchorPoint = Vector2.new(1, 1)
     resizeHandle.Position = UDim2.new(1, -4, 1, -4)
     resizeHandle.Size = UDim2.fromOffset(28, 28)
-    resizeHandle.Backgroundy = 1
+    resizeHandle.BackgroundTransparency = 1
     resizeHandle.BorderSizePixel = 0
     resizeHandle.AutoButtonColor = false
     resizeHandle.Active = true
@@ -936,7 +949,8 @@ end)
 
         local pointer = Vector2.new(input.Position.X, input.Position.Y)
 
-        if pointInside(closeButton, pointer) or pointInside(minButton, pointer) then
+        if pointInside(closeButton, pointer)
+            or pointInside(minButton, pointer) then
             return
         end
 
@@ -975,76 +989,37 @@ end)
         resizeStartTopLeft = wrapper.AbsolutePosition
     end
 
-    local function isVisibleInWindow(object)
-        local current = object
-
-        while current do
-            if current:IsA("GuiObject") and not current.Visible then
-                return false
-            end
-
-            if current == root then
-                return true
-            end
-
-            current = current.Parent
+    window._windowDragBeganConnection = UserInputService.InputBegan:Connect(function(input)
+        if closed or not window.Visible or not isPointerInput(input) then
+            return
         end
 
-        return false
-    end
-
-    local function isInteractiveAt(point, inputType)
-        for _, object in ipairs(root:GetDescendants()) do
-            if object:IsA("GuiObject")
-                and isVisibleInWindow(object)
-                and pointInside(object, point) then
-
-                if object:IsA("TextButton")
-                    or object:IsA("ImageButton")
-                    or object:IsA("TextBox") then
-                    return true
-                end
-
-                if inputType == Enum.UserInputType.Touch
-                    and object:IsA("ScrollingFrame") then
-                    return true
-                end
-            end
+        if UserInputService:GetFocusedTextBox() or activeDropdownClose then
+            return
         end
 
-        return false
-    end
+        local point = Vector2.new(input.Position.X, input.Position.Y)
 
-window._windowDragBeganConnection = UserInputService.InputBegan:Connect(function(input)
-    if closed or not window.Visible or not isPointerInput(input) then
-        return
-    end
+        if pointInside(toggleButton, point) then
+            return
+        end
 
-    if UserInputService:GetFocusedTextBox() or activeDropdownClose then
-        return
-    end
+        if pointInside(resizeHandle, point) then
+            beginResize(input)
+            return
+        end
 
-    local point = Vector2.new(input.Position.X, input.Position.Y)
+        if not pointInside(topBar, point) then
+            return
+        end
 
-    if pointInside(toggleButton, point) then
-        return
-    end
+        if pointInside(closeButton, point)
+            or pointInside(minButton, point) then
+            return
+        end
 
-    if pointInside(resizeHandle, point) then
-        beginResize(input)
-        return
-    end
-
-    if not pointInside(topBar, point) then
-        return
-    end
-
-    if pointInside(closeButton, point) or pointInside(minButton, point) then
-        return
-    end
-
-    beginDrag(input)
-end)
+        beginDrag(input)
+    end)
 
     window._inputChangedConnection = UserInputService.InputChanged:Connect(function(input)
         if closed or not wrapper.Parent or not window.Visible then
@@ -1052,7 +1027,11 @@ end)
         end
 
         if resizing then
-            if not matchesPointerMove(resizeInputType, resizeInputObject, input) then
+            if not matchesPointerMove(
+                resizeInputType,
+                resizeInputObject,
+                input
+            ) then
                 return
             end
 
@@ -1202,36 +1181,36 @@ end)
 
         if previous then
             playTween(previous.Button, Ease.Fast, {
-                Backgroundy = 1,
+                BackgroundTransparency = 1,
             })
 
             playTween(previous.Stroke, Ease.Fast, {
-                y = 1,
+                Transparency = 1,
             })
 
             playTween(previous.Label, Ease.Fast, {
                 TextColor3 = Theme.TextDim,
             })
 
-            previous.AccentBar.Backgroundy = 1
+            previous.AccentBar.BackgroundTransparency = 1
             previous.Page.Visible = false
         end
 
         self.ActiveTab = target
 
         playTween(target.Button, Ease.Fast, {
-            Backgroundy = 0,
+            BackgroundTransparency = 0,
         })
 
         playTween(target.Stroke, Ease.Fast, {
-            y = 0.4,
+            Transparency = 0.4,
         })
 
         playTween(target.Label, Ease.Fast, {
             TextColor3 = Theme.Text,
         })
 
-        target.AccentBar.Backgroundy = 0
+        target.AccentBar.BackgroundTransparency = 0
         target.Page.Position = UDim2.new(0, 8, 0, 0)
         target.Page.Visible = true
 
@@ -1251,13 +1230,14 @@ end)
         tabButton.Name = "Tab_" .. tostring(name)
         tabButton.Size = UDim2.new(1, 0, 0, 34)
         tabButton.BackgroundColor3 = Theme.SurfaceAlt
-        tabButton.Backgroundy = 1
+        tabButton.BackgroundTransparency = 1
         tabButton.BorderSizePixel = 0
         tabButton.AutoButtonColor = false
         tabButton.Text = ""
         tabButton.LayoutOrder = #self.Tabs + 1
         tabButton.ZIndex = 3
         applyCorner(tabButton)
+
         local tabStroke = applyStroke(tabButton, Theme.Stroke, 1, 1)
         tabButton.Parent = sidebar
 
@@ -1265,14 +1245,14 @@ end)
         tabAccent.Size = UDim2.new(0, 3, 0, 16)
         tabAccent.Position = UDim2.new(0, 6, 0.5, -8)
         tabAccent.BackgroundColor3 = accent
-        tabAccent.Backgroundy = 1
+        tabAccent.BackgroundTransparency = 1
         tabAccent.BorderSizePixel = 0
         tabAccent.ZIndex = 4
         applyCorner(tabAccent)
         tabAccent.Parent = tabButton
 
         local tabLabel = Instance.new("TextLabel")
-        tabLabel.Backgroundy = 1
+        tabLabel.BackgroundTransparency = 1
         tabLabel.Size = UDim2.new(1, -22, 1, 0)
         tabLabel.Position = UDim2.new(0, 18, 0, 0)
         tabLabel.Font = Theme.Font
@@ -1286,7 +1266,7 @@ end)
         local page = Instance.new("ScrollingFrame")
         page.Name = "Page_" .. tostring(name)
         page.Size = UDim2.fromScale(1, 1)
-        page.Backgroundy = 1
+        page.BackgroundTransparency = 1
         page.BorderSizePixel = 0
         page.ScrollBarThickness = 3
         page.ScrollBarImageColor3 = accent
@@ -1314,7 +1294,7 @@ end)
             end
 
             playTween(tabButton, Ease.Fast, {
-                Backgroundy = 0.6,
+                BackgroundTransparency = 0.6,
             })
         end)
 
@@ -1324,7 +1304,7 @@ end)
             end
 
             playTween(tabButton, Ease.Fast, {
-                Backgroundy = 1,
+                BackgroundTransparency = 1,
             })
         end)
 
@@ -1357,11 +1337,12 @@ function Lib:CreateButton(parent, text, callback)
     button.AutoButtonColor = false
     button.Text = ""
     applyCorner(button)
+
     local stroke = applyStroke(button, Theme.Stroke, 1, 0.4)
     button.Parent = parent
 
     local label = Instance.new("TextLabel")
-    label.Backgroundy = 1
+    label.BackgroundTransparency = 1
     label.Size = UDim2.fromScale(1, 1)
     label.Font = Theme.FontSemi
     label.TextSize = 14
@@ -1376,7 +1357,7 @@ function Lib:CreateButton(parent, text, callback)
 
         playTween(stroke, Ease.Fast, {
             Color = accent,
-            y = 0.1,
+            Transparency = 0.1,
         })
 
         playTween(label, Ease.Fast, {
@@ -1391,7 +1372,7 @@ function Lib:CreateButton(parent, text, callback)
 
         playTween(stroke, Ease.Fast, {
             Color = Theme.Stroke,
-            y = 0.4,
+            Transparency = 0.4,
         })
 
         playTween(label, Ease.Fast, {
@@ -1413,13 +1394,13 @@ function Lib:CreateToggle(parent, text, default, callback)
     local row = Instance.new("Frame")
     row.Size = UDim2.new(1, 0, 0, 36)
     row.BackgroundColor3 = Theme.SurfaceAlt
-    row.Backgroundy = 0.35
+    row.BackgroundTransparency = 0.35
     row.BorderSizePixel = 0
     applyCorner(row)
     row.Parent = parent
 
     local label = Instance.new("TextLabel")
-    label.Backgroundy = 1
+    label.BackgroundTransparency = 1
     label.Size = UDim2.new(1, -62, 1, 0)
     label.Position = UDim2.new(0, 12, 0, 0)
     label.Font = Theme.FontSemi
@@ -1437,6 +1418,7 @@ function Lib:CreateToggle(parent, text, default, callback)
     track.BorderSizePixel = 0
     track.ZIndex = 3
     applyCorner(track)
+
     local trackStroke = applyStroke(track, Theme.Stroke, 1, 0.4)
     track.Parent = row
 
@@ -1451,7 +1433,7 @@ function Lib:CreateToggle(parent, text, default, callback)
 
     local click = Instance.new("TextButton")
     click.Size = UDim2.fromScale(1, 1)
-    click.Backgroundy = 1
+    click.BackgroundTransparency = 1
     click.BorderSizePixel = 0
     click.Text = ""
     click.ZIndex = 10
@@ -1459,7 +1441,9 @@ function Lib:CreateToggle(parent, text, default, callback)
 
     local function render()
         playTween(knob, Ease.Fast, {
-            Position = state and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7),
+            Position = state
+                and UDim2.new(1, -17, 0.5, -7)
+                or UDim2.new(0, 3, 0.5, -7),
             BackgroundColor3 = state and Theme.Text or Theme.TextDim,
         })
 
@@ -1469,7 +1453,7 @@ function Lib:CreateToggle(parent, text, default, callback)
 
         playTween(trackStroke, Ease.Fast, {
             Color = state and accent or Theme.Stroke,
-            y = state and 0.1 or 0.4,
+            Transparency = state and 0.1 or 0.4,
         })
     end
 
@@ -1492,9 +1476,11 @@ function Lib:CreateToggle(parent, text, default, callback)
         Set = function(_, value, fireCallback)
             set(value, fireCallback ~= false)
         end,
+
         Get = function()
             return state
         end,
+
         Row = row,
     }
 end
@@ -1520,7 +1506,7 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
     local row = Instance.new("Frame")
     row.Name = "Slider"
     row.Size = UDim2.new(1, 0, 0, 40)
-    row.Backgroundy = 1
+    row.BackgroundTransparency = 1
     row.BorderSizePixel = 0
     row.Parent = parent
 
@@ -1532,7 +1518,6 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
     track.BorderSizePixel = 0
     track.ClipsDescendants = true
     track.Parent = row
-
     applyCorner(track, 8)
 
     local outline = Instance.new("UIStroke")
@@ -1554,7 +1539,7 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
     local click = Instance.new("TextButton")
     click.Name = "ClickArea"
     click.Size = UDim2.fromScale(1, 1)
-    click.Backgroundy = 1
+    click.BackgroundTransparency = 1
     click.BorderSizePixel = 0
     click.AutoButtonColor = false
     click.Text = ""
@@ -1564,7 +1549,7 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
     local valueLabel = Instance.new("TextLabel")
     valueLabel.Name = "Value"
     valueLabel.Size = UDim2.fromScale(1, 1)
-    valueLabel.Backgroundy = 1
+    valueLabel.BackgroundTransparency = 1
     valueLabel.Font = Theme.FontBold
     valueLabel.TextSize = 13
     valueLabel.TextColor3 = Theme.Text
@@ -1652,13 +1637,22 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
                 return
             end
 
-            if matchesPointerMove(dragInputType, dragInputObject, changedInput) then
+            if matchesPointerMove(
+                dragInputType,
+                dragInputObject,
+                changedInput
+            ) then
                 updateFromX(changedInput.Position.X)
             end
         end)
 
         endedConnection = UserInputService.InputEnded:Connect(function(endedInput)
-            if dragging and matchesPointerEnd(dragInputType, dragInputObject, endedInput) then
+            if dragging
+                and matchesPointerEnd(
+                    dragInputType,
+                    dragInputObject,
+                    endedInput
+                ) then
                 stopDragging()
             end
         end)
@@ -1685,14 +1679,15 @@ function Lib:CreateTextBox(parent, placeholder, callback)
     local box = Instance.new("Frame")
     box.Size = UDim2.new(1, 0, 0, 38)
     box.BackgroundColor3 = Theme.SurfaceAlt
-    box.Backgroundy = 0.35
+    box.BackgroundTransparency = 0.35
     box.BorderSizePixel = 0
     applyCorner(box)
+
     local stroke = applyStroke(box, Theme.Stroke, 1, 0.4)
     box.Parent = parent
 
     local input = Instance.new("TextBox")
-    input.Backgroundy = 1
+    input.BackgroundTransparency = 1
     input.Size = UDim2.fromScale(1, 1)
     input.Font = Theme.FontSemi
     input.TextSize = 14
@@ -1708,22 +1703,22 @@ function Lib:CreateTextBox(parent, placeholder, callback)
     input.Focused:Connect(function()
         playTween(stroke, Ease.Fast, {
             Color = getAccent(parent),
-            y = 0,
+            Transparency = 0,
         })
 
         playTween(box, Ease.Fast, {
-            Backgroundy = 0.18,
+            BackgroundTransparency = 0.18,
         })
     end)
 
     input.FocusLost:Connect(function(enterPressed)
         playTween(stroke, Ease.Fast, {
             Color = Theme.Stroke,
-            y = 0.4,
+            Transparency = 0.4,
         })
 
         playTween(box, Ease.Fast, {
-            Backgroundy = 0.35,
+            BackgroundTransparency = 0.35,
         })
 
         invoke(callback, input.Text, enterPressed)
@@ -1734,7 +1729,7 @@ end
 
 function Lib:CreateLabel(parent, text, height)
     local label = Instance.new("TextLabel")
-    label.Backgroundy = 1
+    label.BackgroundTransparency = 1
     label.Size = UDim2.new(1, 0, 0, height or 22)
     label.Font = Theme.Font
     label.TextSize = 13
@@ -1750,7 +1745,7 @@ function Lib:CreateDivider(parent)
     local divider = Instance.new("Frame")
     divider.Size = UDim2.new(1, 0, 0, 1)
     divider.BackgroundColor3 = Theme.Stroke
-    divider.Backgroundy = 0.5
+    divider.BackgroundTransparency = 0.5
     divider.BorderSizePixel = 0
     divider.Parent = parent
     return divider
@@ -1761,7 +1756,7 @@ function Lib:CreateSection(parent, title)
 
     local wrap = Instance.new("Frame")
     wrap.Size = UDim2.new(1, 0, 0, 26)
-    wrap.Backgroundy = 1
+    wrap.BackgroundTransparency = 1
     wrap.Parent = parent
 
     local dot = Instance.new("Frame")
@@ -1773,7 +1768,7 @@ function Lib:CreateSection(parent, title)
     dot.Parent = wrap
 
     local label = Instance.new("TextLabel")
-    label.Backgroundy = 1
+    label.BackgroundTransparency = 1
     label.Size = UDim2.new(1, -12, 1, 0)
     label.Position = UDim2.new(0, 12, 0, 0)
     label.Font = Theme.FontBold
@@ -1800,7 +1795,7 @@ function Lib:CreateDropdown(parent, text, options, callback)
     local row = Instance.new("Frame")
     row.Size = UDim2.new(1, 0, 0, 38)
     row.BackgroundColor3 = Theme.SurfaceAlt
-    row.Backgroundy = 0.35
+    row.BackgroundTransparency = 0.35
     row.BorderSizePixel = 0
     row.ClipsDescendants = false
     applyCorner(row)
@@ -1808,7 +1803,7 @@ function Lib:CreateDropdown(parent, text, options, callback)
     row.Parent = parent
 
     local titleLabel = Instance.new("TextLabel")
-    titleLabel.Backgroundy = 1
+    titleLabel.BackgroundTransparency = 1
     titleLabel.Size = UDim2.new(0.55, -20, 1, 0)
     titleLabel.Position = UDim2.new(0, 12, 0, 0)
     titleLabel.Font = Theme.FontSemi
@@ -1820,7 +1815,7 @@ function Lib:CreateDropdown(parent, text, options, callback)
     titleLabel.Parent = row
 
     local valueLabel = Instance.new("TextLabel")
-    valueLabel.Backgroundy = 1
+    valueLabel.BackgroundTransparency = 1
     valueLabel.Size = UDim2.new(0.45, -34, 1, 0)
     valueLabel.Position = UDim2.new(0.55, 0, 0, 0)
     valueLabel.Font = Theme.Font
@@ -1832,7 +1827,7 @@ function Lib:CreateDropdown(parent, text, options, callback)
     valueLabel.Parent = row
 
     local arrow = Instance.new("TextLabel")
-    arrow.Backgroundy = 1
+    arrow.BackgroundTransparency = 1
     arrow.Size = UDim2.fromOffset(16, 16)
     arrow.Position = UDim2.new(1, -24, 0.5, -8)
     arrow.Font = Theme.FontBold
@@ -1844,7 +1839,7 @@ function Lib:CreateDropdown(parent, text, options, callback)
 
     local click = Instance.new("TextButton")
     click.Size = UDim2.fromScale(1, 1)
-    click.Backgroundy = 1
+    click.BackgroundTransparency = 1
     click.BorderSizePixel = 0
     click.Text = ""
     click.ZIndex = 5
@@ -1906,7 +1901,11 @@ function Lib:CreateDropdown(parent, text, options, callback)
         local listHeight = math.min(math.max(#options * 30 + 12, 34), 180)
         local listWidth = math.min(rowSize.X, math.max(160, viewportSize.X - 12))
 
-        local x = clamp(rowPosition.X, 6, math.max(6, viewportSize.X - listWidth - 6))
+        local x = clamp(
+            rowPosition.X,
+            6,
+            math.max(6, viewportSize.X - listWidth - 6)
+        )
         local y = rowPosition.Y + rowSize.Y + 4
 
         if y + listHeight > viewportSize.Y - 6 then
@@ -1932,7 +1931,7 @@ function Lib:CreateDropdown(parent, text, options, callback)
             local optionButton = Instance.new("TextButton")
             optionButton.Size = UDim2.new(1, 0, 0, 26)
             optionButton.BackgroundColor3 = selected and accent or Theme.SurfaceAlt
-            optionButton.Backgroundy = selected and 0.2 or 1
+            optionButton.BackgroundTransparency = selected and 0.2 or 1
             optionButton.BorderSizePixel = 0
             optionButton.AutoButtonColor = false
             optionButton.Font = Theme.Font
@@ -1947,7 +1946,7 @@ function Lib:CreateDropdown(parent, text, options, callback)
             optionButton.MouseEnter:Connect(function()
                 if currentValue ~= option then
                     playTween(optionButton, Ease.Fast, {
-                        Backgroundy = 0.5,
+                        BackgroundTransparency = 0.5,
                     })
                 end
             end)
@@ -1955,7 +1954,7 @@ function Lib:CreateDropdown(parent, text, options, callback)
             optionButton.MouseLeave:Connect(function()
                 if currentValue ~= option then
                     playTween(optionButton, Ease.Fast, {
-                        Backgroundy = 1,
+                        BackgroundTransparency = 1,
                     })
                 end
             end)
@@ -2092,7 +2091,7 @@ function Lib:Notify(config)
     wrapper.Name = "Notification"
     wrapper.Size = UDim2.fromOffset(300, 62)
     wrapper.Position = UDim2.new(1, 400, 1, -80)
-    wrapper.Backgroundy = 1
+    wrapper.BackgroundTransparency = 1
     wrapper.BorderSizePixel = 0
     wrapper.Parent = gui
 
@@ -2101,7 +2100,7 @@ function Lib:Notify(config)
     shadow.Position = UDim2.fromScale(0.5, 0.5)
     shadow.Size = UDim2.new(1, 14, 1, 14)
     shadow.BackgroundColor3 = Color3.new(0, 0, 0)
-    shadow.Backgroundy = 1
+    shadow.BackgroundTransparency = 1
     shadow.BorderSizePixel = 0
     shadow.ZIndex = 0
     applyCorner(shadow)
@@ -2126,7 +2125,7 @@ function Lib:Notify(config)
     colorBar.Parent = holder
 
     local titleLabel = Instance.new("TextLabel")
-    titleLabel.Backgroundy = 1
+    titleLabel.BackgroundTransparency = 1
     titleLabel.Size = UDim2.new(1, -38, 0, 20)
     titleLabel.Position = UDim2.new(0, 22, 0, 9)
     titleLabel.Font = Theme.FontBold
@@ -2138,7 +2137,7 @@ function Lib:Notify(config)
     titleLabel.Parent = holder
 
     local description = Instance.new("TextLabel")
-    description.Backgroundy = 1
+    description.BackgroundTransparency = 1
     description.Size = UDim2.new(1, -38, 0, 20)
     description.Position = UDim2.new(0, 22, 0, 29)
     description.Font = Theme.Font
@@ -2188,7 +2187,12 @@ function Lib:Notify(config)
 
         if wrapper.Parent then
             playTween(wrapper, Ease.Normal, {
-                Position = UDim2.new(1, 400, wrapper.Position.Y.Scale, wrapper.Position.Y.Offset),
+                Position = UDim2.new(
+                    1,
+                    400,
+                    wrapper.Position.Y.Scale,
+                    wrapper.Position.Y.Offset
+                ),
             })
         end
 
@@ -2233,8 +2237,8 @@ function Lib:CreateWatermark(config)
     frame.AnchorPoint = config.AnchorPoint or Vector2.new(0, 0)
     frame.Position = config.Position or UDim2.fromOffset(16, 16)
     frame.BackgroundColor3 = config.BackgroundColor or Theme.Surface
-    frame.Backgroundy = clamp(
-        tonumber(config.Backgroundy) or 0.08,
+    frame.BackgroundTransparency = clamp(
+        tonumber(config.BackgroundTransparency) or 0.08,
         0,
         1
     )
@@ -2257,7 +2261,7 @@ function Lib:CreateWatermark(config)
 
     local label = Instance.new("TextLabel")
     label.Name = "Text"
-    label.Backgroundy = 0
+    label.BackgroundTransparency = 1
     label.Position = UDim2.new(0, 18, 0, 0)
     label.Size = UDim2.new(1, -26, 1, 0)
     label.Font = config.Font or Theme.FontBold
