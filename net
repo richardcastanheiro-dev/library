@@ -2320,7 +2320,7 @@ function Library:MakeDraggable(
     local InputChanged
 
     local SnapGuideX, SnapGuideY
-    local DragTween
+    local DragScale
 
     local function GetSnapGuides()
         if not SnapGuideX then
@@ -2370,6 +2370,16 @@ function Library:MakeDraggable(
         FramePos = UI.Position
         Dragging = true
 
+        if IsMainWindow then
+            DragScale = UI:FindFirstChildOfClass("UIScale")
+            if not DragScale then
+                DragScale = New("UIScale", { Scale = 1, Parent = UI })
+            end
+            TweenService:Create(DragScale, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Scale = 1.012,
+            }):Play()
+        end
+
         Changed = Input.Changed:Connect(function()
             if Input.UserInputState ~= Enum.UserInputState.End then
                 return
@@ -2377,6 +2387,12 @@ function Library:MakeDraggable(
 
             Dragging = false
             HideSnapGuides()
+
+            if DragScale and DragScale.Parent then
+                TweenService:Create(DragScale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    Scale = 1,
+                }):Play()
+            end
 
             if Changed and Changed.Connected then
                 Changed:Disconnect()
@@ -2393,6 +2409,12 @@ function Library:MakeDraggable(
         then
             Dragging = false
             HideSnapGuides()
+
+            if DragScale and DragScale.Parent then
+                TweenService:Create(DragScale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    Scale = 1,
+                }):Play()
+            end
 
             if Changed and Changed.Connected then
                 Changed:Disconnect()
@@ -2439,14 +2461,7 @@ function Library:MakeDraggable(
                 end
             end
 
-            local TargetPosition = UDim2.new(FramePos.X.Scale, NewX, FramePos.Y.Scale, NewY)
-            if DragTween then
-                DragTween:Cancel()
-            end
-            DragTween = TweenService:Create(UI, TweenInfo.new(0.075, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Position = TargetPosition,
-            })
-            DragTween:Play()
+            UI.Position = UDim2.new(FramePos.X.Scale, NewX, FramePos.Y.Scale, NewY)
         end
     end)
 
