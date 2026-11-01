@@ -570,10 +570,6 @@ function Lib:CreateWindow(config)
     wrapper.ClipsDescendants = false
     wrapper.Parent = gui
 
-    local scale = Instance.new("UIScale")
-    scale.Scale = 1
-    scale.Parent = wrapper
-
     local shadow = Instance.new("Frame")
     shadow.Name = "Shadow"
     shadow.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -755,8 +751,8 @@ function Lib:CreateWindow(config)
     local resizeButton = Instance.new("TextButton")
     resizeButton.Name = "ResizeHandle"
     resizeButton.AnchorPoint = Vector2.new(1, 1)
-    resizeButton.Position = UDim2.new(1, -5, 1, -5)
-    resizeButton.Size = UDim2.fromOffset(30, 30)
+    resizeButton.Position = UDim2.new(1, -6, 1, -6)
+    resizeButton.Size = UDim2.fromOffset(28, 28)
     resizeButton.BackgroundTransparency = 1
     resizeButton.BorderSizePixel = 0
     resizeButton.AutoButtonColor = false
@@ -770,7 +766,7 @@ function Lib:CreateWindow(config)
     resizeIcon.Name = "Icon"
     resizeIcon.AnchorPoint = Vector2.new(0.5, 0.5)
     resizeIcon.Position = UDim2.fromScale(0.5, 0.5)
-    resizeIcon.Size = UDim2.fromOffset(14, 14)
+    resizeIcon.Size = UDim2.fromOffset(16, 16)
     resizeIcon.BackgroundTransparency = 1
     resizeIcon.BorderSizePixel = 0
     resizeIcon.Active = false
@@ -779,26 +775,23 @@ function Lib:CreateWindow(config)
 
     local resizeIconParts = {}
 
-    local function addResizeIconPart(x, y, partWidth, partHeight)
-        local part = Instance.new("Frame")
-        part.Size = UDim2.fromOffset(partWidth, partHeight)
-        part.Position = UDim2.fromOffset(x, y)
-        part.BackgroundColor3 = Theme.TextDim
-        part.BorderSizePixel = 0
-        part.Active = false
-        part.ZIndex = 22
-        part.Parent = resizeIcon
-        table.insert(resizeIconParts, part)
+    local function addResizeLine(x, y, length, angle)
+        local line = Instance.new("Frame")
+        line.AnchorPoint = Vector2.new(0.5, 0.5)
+        line.Position = UDim2.fromOffset(x, y)
+        line.Size = UDim2.fromOffset(length, 2)
+        line.Rotation = angle
+        line.BackgroundColor3 = Theme.TextDim
+        line.BorderSizePixel = 0
+        line.Active = false
+        line.ZIndex = 22
+        line.Parent = resizeIcon
+        table.insert(resizeIconParts, line)
     end
 
-    addResizeIconPart(0, 0, 6, 2)
-    addResizeIconPart(0, 0, 2, 6)
-    addResizeIconPart(8, 0, 6, 2)
-    addResizeIconPart(12, 0, 2, 6)
-    addResizeIconPart(0, 12, 6, 2)
-    addResizeIconPart(0, 8, 2, 6)
-    addResizeIconPart(8, 12, 6, 2)
-    addResizeIconPart(12, 8, 2, 6)
+    addResizeLine(4, 12, 7, -45)
+    addResizeLine(8, 8, 9, -45)
+    addResizeLine(12, 4, 11, -45)
 
     resizeButton.MouseEnter:Connect(function()
         for _, part in ipairs(resizeIconParts) do
@@ -846,11 +839,11 @@ function Lib:CreateWindow(config)
     local startCenter
     local resizeStart
     local resizeStartSize
-    local resizeStartTopLeft
+    local resizeStartCenter
 
-    local visibilityToken = 0
-    local visibilityTweens = {}
+    local visibilityTween
     local visibilityConnection
+    local visibilityToken = 0
     local sizeTween
 
     local function clampWindowCenter(x, y)
@@ -885,28 +878,28 @@ function Lib:CreateWindow(config)
         end
     end
 
-    local function cancelVisibilityTweens()
+    local function cancelVisibilityTween()
+        visibilityToken += 1
+
         if visibilityConnection then
             visibilityConnection:Disconnect()
             visibilityConnection = nil
         end
 
-        for _, tween in ipairs(visibilityTweens) do
+        if visibilityTween then
             pcall(function()
-                tween:Cancel()
+                visibilityTween:Cancel()
             end)
-        end
 
-        table.clear(visibilityTweens)
+            visibilityTween = nil
+        end
     end
 
     local function finalizeVisibilityTween()
-        visibilityToken += 1
-        cancelVisibilityTweens()
+        cancelVisibilityTween()
 
-        scale.Scale = 1
-        root.GroupTransparency = window.Visible and 0 or 1
         wrapper.Visible = window.Visible
+        root.GroupTransparency = window.Visible and 0 or 1
 
         if window.Visible then
             wrapper.Size = getDisplayedSize()
@@ -958,9 +951,8 @@ function Lib:CreateWindow(config)
         closed = true
         window.Closed = true
         window.Visible = false
-        visibilityToken += 1
 
-        cancelVisibilityTweens()
+        cancelVisibilityTween()
         cancelSizeTween()
         cleanupInputConnections()
 
@@ -989,14 +981,11 @@ function Lib:CreateWindow(config)
 
         state = state == true
 
-        if window.Visible == state and #visibilityTweens == 0 then
+        if window.Visible == state and not visibilityTween then
             return
         end
 
-        visibilityToken += 1
-        local token = visibilityToken
-
-        cancelVisibilityTweens()
+        cancelVisibilityTween()
         cancelSizeTween()
 
         if not state then
@@ -1023,39 +1012,29 @@ function Lib:CreateWindow(config)
             wrapper.Size = getDisplayedSize()
 
             if not wasWrapperVisible then
-                scale.Scale = 0.92
                 root.GroupTransparency = 1
             end
         end
 
+        local targetTransparency = state and 0 or 1
         local tweenInfo = TweenInfo.new(
             0.18,
             Enum.EasingStyle.Quint,
             state and Enum.EasingDirection.Out or Enum.EasingDirection.In
         )
 
-        local scaleTween = TweenService:Create(
-            scale,
-            tweenInfo,
-            {
-                Scale = state and 1 or 0.92,
-            }
-        )
-
-        local groupTween = TweenService:Create(
+        local tween = TweenService:Create(
             root,
             tweenInfo,
             {
-                GroupTransparency = state and 0 or 1,
+                GroupTransparency = targetTransparency,
             }
         )
 
-        visibilityTweens = {
-            scaleTween,
-            groupTween,
-        }
+        visibilityTween = tween
+        local token = visibilityToken
 
-        visibilityConnection = scaleTween.Completed:Connect(function(playbackState)
+        visibilityConnection = tween.Completed:Connect(function(playbackState)
             if token ~= visibilityToken then
                 return
             end
@@ -1064,23 +1043,24 @@ function Lib:CreateWindow(config)
                 return
             end
 
-            visibilityConnection = nil
-            table.clear(visibilityTweens)
+            visibilityTween = nil
+
+            if visibilityConnection then
+                visibilityConnection:Disconnect()
+                visibilityConnection = nil
+            end
 
             if state then
                 wrapper.Visible = true
                 wrapper.Size = getDisplayedSize()
-                scale.Scale = 1
                 root.GroupTransparency = 0
             else
                 wrapper.Visible = false
-                scale.Scale = 1
                 root.GroupTransparency = 1
             end
         end)
 
-        scaleTween:Play()
-        groupTween:Play()
+        tween:Play()
     end
 
     function window:SetVisible(state)
@@ -1177,7 +1157,12 @@ function Lib:CreateWindow(config)
         resizeInputObject = input
         resizeStart = Vector2.new(input.Position.X, input.Position.Y)
         resizeStartSize = wrapper.AbsoluteSize
-        resizeStartTopLeft = wrapper.AbsolutePosition
+
+        local position = wrapper.Position
+        resizeStartCenter = Vector2.new(
+            position.X.Scale * getViewport().X + position.X.Offset,
+            position.Y.Scale * getViewport().Y + position.Y.Offset
+        )
     end
 
     window._windowDragBeganConnection = topBar.InputBegan:Connect(function(input)
@@ -1224,11 +1209,14 @@ function Lib:CreateWindow(config)
             local delta = pointer - resizeStart
             local view = getViewport()
 
+            local startLeft = resizeStartCenter.X - resizeStartSize.X / 2
+            local startTop = resizeStartCenter.Y - resizeStartSize.Y / 2
+
             local availableWidth = math.max(
                 160,
                 math.min(
                     view.X - 16,
-                    view.X - resizeStartTopLeft.X - 8
+                    view.X - startLeft - 8
                 )
             )
 
@@ -1236,7 +1224,7 @@ function Lib:CreateWindow(config)
                 140,
                 math.min(
                     view.Y - 16,
-                    view.Y - resizeStartTopLeft.Y - 8
+                    view.Y - startTop - 8
                 )
             )
 
@@ -1258,8 +1246,8 @@ function Lib:CreateWindow(config)
             wrapper.Size = UDim2.fromOffset(newWidth, newHeight)
 
             wrapper.Position = UDim2.fromOffset(
-                resizeStartTopLeft.X + newWidth / 2,
-                resizeStartTopLeft.Y + newHeight / 2
+                resizeStartCenter.X + (newWidth - resizeStartSize.X) / 2,
+                resizeStartCenter.Y + (newHeight - resizeStartSize.Y) / 2
             )
 
             baseSize = UDim2.fromOffset(newWidth, newHeight)
@@ -1332,7 +1320,7 @@ function Lib:CreateWindow(config)
             resizeInputObject = nil
             resizeStart = nil
             resizeStartSize = nil
-            resizeStartTopLeft = nil
+            resizeStartCenter = nil
 
             if wrapper.Parent then
                 baseSize = UDim2.fromOffset(
@@ -1363,7 +1351,7 @@ function Lib:CreateWindow(config)
             return
         end
 
-        if #visibilityTweens > 0 then
+        if visibilityTween then
             finalizeVisibilityTween()
         end
 
