@@ -1178,17 +1178,40 @@ function Lib:CreateWindow(config)
     end)
 
     window._inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
-        if resizing and matchesPointerEnd(resizeInputType, resizeInputObject, input) then
-            resizing = false
-            resizeInputType = nil
-            resizeInputObject = nil
-
-            if wrapper.Parent then
-                baseSize = UDim2.fromOffset(
-                    wrapper.AbsoluteSize.X,
-                    wrapper.AbsoluteSize.Y
-                )
+                if resizing then
+            if not matchesPointerMove(
+                resizeInputType,
+                resizeInputObject,
+                input
+            ) then
+                return
             end
+
+            local pointer = Vector2.new(input.Position.X, input.Position.Y)
+            local delta = pointer - resizeStart
+            local view = getViewport()
+
+            local minW = math.min(380, math.max(160, view.X - 24))
+            local minH = math.min(280, math.max(140, view.Y - 24))
+
+            local left = resizeStartTopLeft.X
+            local top = resizeStartTopLeft.Y
+
+            local maxW = math.max(minW, view.X - left - 8)
+            local maxH = math.max(minH, view.Y - top - 8)
+
+            local newWidth = clamp(resizeStartSize.X + delta.X, minW, maxW)
+            local newHeight = clamp(resizeStartSize.Y + delta.Y, minH, maxH)
+
+            wrapper.Size = UDim2.fromOffset(newWidth, newHeight)
+            wrapper.Position = UDim2.fromOffset(
+                left + newWidth / 2,
+                top + newHeight / 2
+            )
+
+            baseSize = UDim2.fromOffset(newWidth, newHeight)
+
+            return
         end
 
         if dragging and matchesPointerEnd(dragInputType, dragInputObject, input) then
