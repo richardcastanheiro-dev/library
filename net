@@ -121,11 +121,11 @@ local function applyCorner(instance, radius)
     return corner
 end
 
-local function applyStroke(instance, color, thickness, y)
+local function applyStroke(instance, color, thickness, transparency)
     local stroke = Instance.new("UIStroke")
     stroke.Color = color or Theme.Stroke
     stroke.Thickness = thickness or 1
-    stroke.y = y or 0.35
+    stroke.Transparency = transparency or 0.35
     stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     stroke.Parent = instance
     return stroke
@@ -1014,40 +1014,36 @@ root.BackgroundTransparency = 0
         return false
     end
 
-    window._windowDragBeganConnection = UserInputService.InputBegan:Connect(function(input)
-        if closed or not window.Visible or not isPointerInput(input) then
-            return
-        end
+window._windowDragBeganConnection = UserInputService.InputBegan:Connect(function(input)
+    if closed or not window.Visible or not isPointerInput(input) then
+        return
+    end
 
-        if UserInputService:GetFocusedTextBox() then
-            return
-        end
+    if UserInputService:GetFocusedTextBox() or activeDropdownClose then
+        return
+    end
 
-        if activeDropdownClose then
-            return
-        end
+    local point = Vector2.new(input.Position.X, input.Position.Y)
 
-        local point = Vector2.new(input.Position.X, input.Position.Y)
+    if pointInside(toggleButton, point) then
+        return
+    end
 
-        if pointInside(toggleButton, point) then
-            return
-        end
+    if pointInside(resizeHandle, point) then
+        beginResize(input)
+        return
+    end
 
-        if pointInside(resizeHandle, point) then
-            beginResize(input)
-            return
-        end
+    if not pointInside(topBar, point) then
+        return
+    end
 
-        if not pointInside(root, point) then
-            return
-        end
+    if pointInside(closeButton, point) or pointInside(minButton, point) then
+        return
+    end
 
-        if isInteractiveAt(point, input.UserInputType) then
-            return
-        end
-
-        beginDrag(input)
-    end)
+    beginDrag(input)
+end)
 
     window._inputChangedConnection = UserInputService.InputChanged:Connect(function(input)
         if closed or not wrapper.Parent or not window.Visible then
@@ -1541,7 +1537,7 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
     local outline = Instance.new("UIStroke")
     outline.Color = Theme.Stroke
     outline.Thickness = 1
-    outline.y = 0.2
+    outline.Transparency = 0.2
     outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
     outline.Parent = track
 
