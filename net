@@ -585,28 +585,29 @@ root.BackgroundTransparency = 0
     local closeStroke = applyStroke(closeButton, Theme.Stroke, 1, 0.4)
     closeButton.Parent = topBar
 
-    closeButton.MouseEnter:Connect(function()
-        playTween(closeButton, Ease.Fast, {
-            BackgroundColor3 = Theme.Danger,
-            TextColor3 = Theme.Text,
-        })
+closeButton.MouseEnter:Connect(function()
+    playTween(closeButton, Ease.Fast, {
+        BackgroundColor3 = Theme.Danger,
+        TextColor3 = Theme.Text,
+    })
 
-        playTween(closeStroke, Ease.Fast, {
-            Color = Theme.Danger,
-            y = 0.1,
-        })
-    end)
+    playTween(closeStroke, Ease.Fast, {
+        Color = Theme.Danger,
+        Transparency = 0.1,
+    })
+end)
 
-    closeButton.MouseLeave:Connect(function()
-        playTween(closeButton, Ease.Fast, {
-            BackgroundColor3 = Theme.SurfaceAlt,
-            TextColor3 = Theme.TextDim,
-        })
+closeButton.MouseLeave:Connect(function()
+    playTween(closeButton, Ease.Fast, {
+        BackgroundColor3 = Theme.SurfaceAlt,
+        TextColor3 = Theme.TextDim,
+    })
 
-        playTween(closeStroke, Ease.Fast, {
-    Color = Theme.Danger,
-    Transparency = 0.1,
-})
+    playTween(closeStroke, Ease.Fast, {
+        Color = Theme.Stroke,
+        Transparency = 0.4,
+    })
+end)
     end)
 
     minButton.MouseEnter:Connect(function()
