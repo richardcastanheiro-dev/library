@@ -1,3 +1,4 @@
+
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -5,7 +6,7 @@ local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
 local Lib = {
-	Version = "6.0.0",
+	Version = "6.2.0",
 	_window = nil,
 	_notifyHandler = nil
 }
@@ -1099,10 +1100,10 @@ function Lib:CreateWindow(config)
 	cleanOld()
 	local parent = getGuiParent()
 	local viewport = getViewport()
-	local availableWidth = math.max(280, viewport.X - 24)
-	local availableHeight = math.max(220, viewport.Y - 24)
-	local width = math.min(560, availableWidth)
-	local height = math.min(380, availableHeight)
+	local availableWidth = math.max(320, viewport.X - 32)
+	local availableHeight = math.max(240, viewport.Y - 32)
+	local width = math.min(1000, availableWidth)
+	local height = math.min(580, availableHeight)
 	if typeof(config.Size) == "UDim2" then
 		local requestedWidth = config.Size.X.Offset + config.Size.X.Scale * viewport.X
 		local requestedHeight = config.Size.Y.Offset + config.Size.Y.Scale * viewport.Y
@@ -1113,10 +1114,12 @@ function Lib:CreateWindow(config)
 			height = requestedHeight
 		end
 	end
-	local minWidth = math.min(380, math.max(160, viewport.X - 16))
-	local minHeight = math.min(280, math.max(160, viewport.Y - 16))
-	width = math.clamp(width, minWidth, math.max(minWidth, viewport.X - 16))
-	height = math.clamp(height, minHeight, math.max(minHeight, viewport.Y - 16))
+	local maxWidth = math.max(160, viewport.X - 16)
+	local maxHeight = math.max(160, viewport.Y - 16)
+	local minWidth = math.min(380, maxWidth)
+	local minHeight = math.min(280, maxHeight)
+	width = math.clamp(width, minWidth, maxWidth)
+	height = math.clamp(height, minHeight, maxHeight)
 	local startX = math.clamp(math.floor((viewport.X - width) / 2), 8, math.max(8, viewport.X - width - 8))
 	local startY = math.clamp(math.floor((viewport.Y - height) / 2), 8, math.max(8, viewport.Y - height - 8))
 	local screenGui = make("ScreenGui", {
@@ -1146,6 +1149,7 @@ function Lib:CreateWindow(config)
 		BackgroundColor3 = Theme.Bg,
 		BackgroundTransparency = 0,
 		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(0, 0),
 		Size = UDim2.fromScale(1, 1),
 		GroupTransparency = 0,
 		ClipsDescendants = true
@@ -1285,7 +1289,7 @@ function Lib:CreateWindow(config)
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Position = UDim2.fromOffset(8, 10),
-		Size = UDim2.new(1, -16, 1, -50),
+		Size = UDim2.new(1, -16, 1, -86),
 		ClipsDescendants = false,
 		ZIndex = 2
 	})
@@ -1296,20 +1300,90 @@ function Lib:CreateWindow(config)
 		FillDirection = Enum.FillDirection.Vertical,
 		HorizontalAlignment = Enum.HorizontalAlignment.Left
 	})
-	make("TextLabel", {
-		Name = "Version",
+	make("Frame", {
+		Name = "ProfileDivider",
 		Parent = sidebar,
-		BackgroundTransparency = 1,
-		Position = UDim2.new(0, 0, 1, -28),
-		Size = UDim2.new(1, 0, 0, 18),
-		Text = "v" .. Lib.Version,
-		Font = Theme.Font,
-		TextSize = 9,
-		TextColor3 = Theme.TextDim,
-		TextXAlignment = Enum.TextXAlignment.Center,
-		TextYAlignment = Enum.TextYAlignment.Center,
-		ZIndex = 2
+		BackgroundColor3 = Theme.Stroke,
+		BackgroundTransparency = 0.55,
+		BorderSizePixel = 0,
+		Position = UDim2.new(0, 10, 1, -76),
+		Size = UDim2.new(1, -20, 0, 1),
+		ZIndex = 3
 	})
+	local profile = make("Frame", {
+		Name = "Profile",
+		Parent = sidebar,
+		BackgroundColor3 = Theme.SurfaceAlt,
+		BackgroundTransparency = 0.4,
+		BorderSizePixel = 0,
+		Position = UDim2.new(0, 10, 1, -66),
+		Size = UDim2.new(1, -20, 0, 56),
+		ZIndex = 3
+	})
+	corner(profile, 10)
+	local avatarFrame = make("Frame", {
+		Name = "AvatarFrame",
+		Parent = profile,
+		BackgroundColor3 = Theme.SurfaceHi,
+		BorderSizePixel = 0,
+		Position = UDim2.fromOffset(9, 9),
+		Size = UDim2.fromOffset(38, 38),
+		ClipsDescendants = true,
+		ZIndex = 4
+	})
+	corner(avatarFrame, 19)
+	local avatarImage = make("ImageLabel", {
+		Name = "Avatar",
+		Parent = avatarFrame,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Size = UDim2.fromScale(1, 1),
+		Image = "",
+		ZIndex = 5
+	})
+	corner(avatarImage, 19)
+	local profileName = make("TextLabel", {
+		Name = "DisplayName",
+		Parent = profile,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(56, 9),
+		Size = UDim2.new(1, -62, 0, 17),
+		Text = LocalPlayer.DisplayName,
+		Font = Theme.FontBold,
+		TextSize = 12,
+		TextColor3 = Theme.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		ZIndex = 5
+	})
+	local profileTag = make("TextLabel", {
+		Name = "Tag",
+		Parent = profile,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(56, 27),
+		Size = UDim2.new(1, -62, 0, 15),
+		Text = "@" .. LocalPlayer.Name,
+		Font = Theme.Font,
+		TextSize = 10,
+		TextColor3 = Theme.AccentSoft,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		ZIndex = 5
+	})
+	local function refreshAvatar()
+		local success, image = pcall(function()
+			return Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+		end)
+		if success and image then
+			avatarImage.Image = image
+		end
+	end
+	task.spawn(refreshAvatar)
+	local displayNameConnection = LocalPlayer:GetPropertyChangedSignal("DisplayName"):Connect(function()
+		profileName.Text = LocalPlayer.DisplayName
+	end)
 	make("Frame", {
 		Name = "SidebarDivider",
 		Parent = root,
@@ -1545,10 +1619,10 @@ function Lib:CreateWindow(config)
 	local function clampWindowBounds()
 		local currentViewport = getViewport()
 		local currentSize = wrapper.AbsoluteSize
-		local maxWidth = math.max(140, currentViewport.X - 16)
-		local maxHeight = math.max(140, currentViewport.Y - 16)
-		local targetWidth = math.min(currentSize.X, maxWidth)
-		local targetHeight = math.min(currentSize.Y, maxHeight)
+		local limitWidth = math.max(140, currentViewport.X - 16)
+		local limitHeight = math.max(140, currentViewport.Y - 16)
+		local targetWidth = math.min(currentSize.X, limitWidth)
+		local targetHeight = math.min(currentSize.Y, limitHeight)
 		if targetWidth ~= currentSize.X or targetHeight ~= currentSize.Y then
 			wrapper.Size = UDim2.fromOffset(math.floor(targetWidth), math.floor(targetHeight))
 		end
@@ -1560,142 +1634,65 @@ function Lib:CreateWindow(config)
 			math.clamp(position.Y.Offset, 8, maxY)
 		)
 	end
-	local resizeHandle = make("TextButton", {
-		Name = "ResizeHandle",
-		Parent = root,
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -4, 1, -4),
-		Size = UDim2.fromOffset(28, 28),
-		Text = "",
-		AutoButtonColor = false,
-		ZIndex = 30
-	})
-	local gripLines = {}
-	local function addGripLine(length, x, y)
-		local line = make("Frame", {
-			Name = "GripLine",
-			Parent = resizeHandle,
-			BackgroundColor3 = Theme.TextDim,
-			BackgroundTransparency = 0.15,
-			BorderSizePixel = 0,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromOffset(x, y),
-			Size = UDim2.fromOffset(2, length),
-			Rotation = -45,
-			ZIndex = 31
-		})
-		table.insert(gripLines, line)
-	end
-	addGripLine(7, 20, 21)
-	addGripLine(11, 16, 19)
-	addGripLine(15, 12, 17)
-	resizeHandle.MouseEnter:Connect(function()
-		for _, line in ipairs(gripLines) do
-			tween(line, {
-				BackgroundColor3 = Theme.Accent
-			}, 0.12)
-		end
-	end)
-	resizeHandle.MouseLeave:Connect(function()
-		for _, line in ipairs(gripLines) do
-			tween(line, {
-				BackgroundColor3 = Theme.TextDim
-			}, 0.12)
-		end
-	end)
-	local resizing = false
-	local resizeStartPointer = Vector2.zero
-	local resizeStartSize = Vector2.zero
-	local resizeStartPosition = Vector2.zero
-	resizeHandle.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			resizing = true
-			resizeStartPointer = Vector2.new(input.Position.X, input.Position.Y)
-			resizeStartSize = wrapper.AbsoluteSize
-			resizeStartPosition = wrapper.AbsolutePosition
-			context.closeAllDropdowns()
-		end
-	end)
-	local resizeChangedConnection = UserInputService.InputChanged:Connect(function(input)
-		if not resizing then
-			return
-		end
-		if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then
-			return
-		end
-		local pointer = Vector2.new(input.Position.X, input.Position.Y)
-		local delta = pointer - resizeStartPointer
-		local currentViewport = getViewport()
-		local maxWidth = math.max(140, currentViewport.X - resizeStartPosition.X - 8)
-		local maxHeight = math.max(140, currentViewport.Y - resizeStartPosition.Y - 8)
-		local minWidth = math.min(380, maxWidth)
-		local minHeight = math.min(280, maxHeight)
-		local newWidth = math.clamp(resizeStartSize.X + delta.X, minWidth, maxWidth)
-		local newHeight = math.clamp(resizeStartSize.Y + delta.Y, minHeight, maxHeight)
-		wrapper.Size = UDim2.fromOffset(math.floor(newWidth), math.floor(newHeight))
-	end)
-	local resizeEndedConnection = UserInputService.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			resizing = false
-		end
-	end)
 	local windowVisible = true
 	local visibilityTween = nil
+	local slideOffset = 16
 	local function setWindowVisible(visible)
 		if destroyed then
 			return
 		end
 		visible = visible == true
+		if visible and windowVisible and wrapper.Visible and visibilityTween == nil and root.GroupTransparency <= 0.001 and root.Position.Y.Offset == 0 then
+			return
+		end
+		if not visible and not windowVisible and not wrapper.Visible and visibilityTween == nil then
+			return
+		end
 		windowVisible = visible
 		window.Visible = visible
-		closeAllDropdowns()
+		context.closeAllDropdowns()
+		if visibilityTween then
+			visibilityTween:Cancel()
+			visibilityTween = nil
+		end
 		if visible then
-			if wrapper.Visible and root.GroupTransparency <= 0.001 and visibilityTween == nil then
-				return
-			end
-			if visibilityTween then
-				visibilityTween:Cancel()
-				visibilityTween = nil
-			end
 			wrapper.Visible = true
-			local currentTransparency = root.GroupTransparency
-			if currentTransparency >= 1 then
-				currentTransparency = 1
+			if root.GroupTransparency >= 0.995 or root.Position.Y.Offset ~= 0 then
+				if root.GroupTransparency >= 0.995 then
+					root.GroupTransparency = 1
+				end
+				root.Position = UDim2.fromOffset(0, slideOffset)
 			end
-			root.GroupTransparency = currentTransparency
 			local animation = TweenService:Create(
 				root,
-				TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+				TweenInfo.new(0.24, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
 				{
-					GroupTransparency = 0
+					GroupTransparency = 0,
+					Position = UDim2.fromOffset(0, 0)
 				}
 			)
 			visibilityTween = animation
 			animation.Completed:Connect(function(state)
 				if state == Enum.PlaybackState.Completed and visibilityTween == animation then
 					root.GroupTransparency = 0
+					root.Position = UDim2.fromOffset(0, 0)
 					visibilityTween = nil
 				end
 			end)
 			animation:Play()
 		else
-			resizing = false
 			if not wrapper.Visible then
 				root.GroupTransparency = 1
+				root.Position = UDim2.fromOffset(0, slideOffset)
 				visibilityTween = nil
 				return
 			end
-			if visibilityTween then
-				visibilityTween:Cancel()
-				visibilityTween = nil
-			end
 			local animation = TweenService:Create(
 				root,
-				TweenInfo.new(0.16, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
+				TweenInfo.new(0.18, Enum.EasingStyle.Quint, Enum.EasingDirection.In),
 				{
-					GroupTransparency = 1
+					GroupTransparency = 1,
+					Position = UDim2.fromOffset(0, slideOffset)
 				}
 			)
 			visibilityTween = animation
@@ -1703,6 +1700,7 @@ function Lib:CreateWindow(config)
 				if state == Enum.PlaybackState.Completed and not windowVisible and visibilityTween == animation then
 					wrapper.Visible = false
 					root.GroupTransparency = 1
+					root.Position = UDim2.fromOffset(0, slideOffset)
 					visibilityTween = nil
 				end
 			end)
@@ -1853,6 +1851,29 @@ function Lib:CreateWindow(config)
 		return card
 	end
 	window._Notify = notify
+	window.Profile = {
+		Frame = profile,
+		Avatar = avatarImage,
+		NameLabel = profileName,
+		TagLabel = profileTag
+	}
+	window.SetProfile = function(_, configArg)
+		if type(configArg) ~= "table" then
+			return
+		end
+		if configArg.Name ~= nil then
+			profileName.Text = tostring(configArg.Name)
+		end
+		if configArg.Tag ~= nil then
+			profileTag.Text = tostring(configArg.Tag)
+		end
+		if configArg.Image ~= nil then
+			avatarImage.Image = tostring(configArg.Image)
+		end
+		if configArg.Hidden ~= nil then
+			profile.Visible = not configArg.Hidden
+		end
+	end
 	window.SetVisible = function(_, visible)
 		setWindowVisible(visible)
 	end
@@ -1899,12 +1920,12 @@ function Lib:CreateWindow(config)
 		if not newWidth or not newHeight then
 			return
 		end
-		local maxWidth = math.max(140, currentViewport.X - 16)
-		local maxHeight = math.max(140, currentViewport.Y - 16)
-		local minSetWidth = math.min(380, maxWidth)
-		local minSetHeight = math.min(280, maxHeight)
-		newWidth = math.clamp(newWidth, minSetWidth, maxWidth)
-		newHeight = math.clamp(newHeight, minSetHeight, maxHeight)
+		local maxSetWidth = math.max(160, currentViewport.X - 16)
+		local maxSetHeight = math.max(160, currentViewport.Y - 16)
+		local minSetWidth = math.min(380, maxSetWidth)
+		local minSetHeight = math.min(280, maxSetHeight)
+		newWidth = math.clamp(newWidth, minSetWidth, maxSetWidth)
+		newHeight = math.clamp(newHeight, minSetHeight, maxSetHeight)
 		wrapper.Size = UDim2.fromOffset(math.floor(newWidth), math.floor(newHeight))
 		clampWindowBounds()
 	end
@@ -2006,17 +2027,14 @@ function Lib:CreateWindow(config)
 		if keybindConnection then
 			keybindConnection:Disconnect()
 		end
-		if resizeChangedConnection then
-			resizeChangedConnection:Disconnect()
-		end
-		if resizeEndedConnection then
-			resizeEndedConnection:Disconnect()
-		end
 		if topBarInputConnection then
 			topBarInputConnection:Disconnect()
 		end
 		if viewportConnection then
 			viewportConnection:Disconnect()
+		end
+		if displayNameConnection then
+			displayNameConnection:Disconnect()
 		end
 		if disconnectDrag then
 			disconnectDrag()
