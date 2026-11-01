@@ -1073,11 +1073,7 @@ function Lib:CreateWindow(config)
         resizeInputType = input.UserInputType
         resizeInputObject = input
 
-        if resizeInputType == Enum.UserInputType.MouseButton1 then
-            resizeStart = UserInputService:GetMouseLocation()
-        else
-            resizeStart = Vector2.new(input.Position.X, input.Position.Y)
-        end
+        resizeStart = Vector2.new(input.Position.X, input.Position.Y)
 
         resizeStartSize = wrapper.AbsoluteSize
         resizeStartTopLeft = wrapper.AbsolutePosition
@@ -1126,13 +1122,7 @@ function Lib:CreateWindow(config)
                 return
             end
 
-            local pointer
-
-            if resizeInputType == Enum.UserInputType.MouseButton1 then
-                pointer = UserInputService:GetMouseLocation()
-            else
-                pointer = Vector2.new(input.Position.X, input.Position.Y)
-            end
+            local pointer = Vector2.new(input.Position.X, input.Position.Y)
 
             local delta = pointer - resizeStart
             local view = getViewport()
