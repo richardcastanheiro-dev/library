@@ -353,6 +353,36 @@ function Lib:CreateWindow(config)
     wrapper.ClipsDescendants = false
     wrapper.Parent = gui
 
+    -- Botão flutuante para esconder e mostrar a janela
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Name = "ToggleWindow"
+    toggleButton.AnchorPoint = Vector2.new(1, 1)
+    toggleButton.Position = UDim2.new(1, -16, 1, -16)
+    toggleButton.Size = UDim2.fromOffset(92, 36)
+    toggleButton.BackgroundColor3 = accent
+    toggleButton.BorderSizePixel = 0
+    toggleButton.AutoButtonColor = false
+    toggleButton.Text = "Fechar"
+    toggleButton.Font = Theme.FontBold
+    toggleButton.TextSize = 13
+    toggleButton.TextColor3 = Theme.Text
+    toggleButton.ZIndex = 100
+    applyCorner(toggleButton, 9)
+    applyStroke(toggleButton, accent, 1, 0.15)
+    toggleButton.Parent = gui
+
+    toggleButton.MouseEnter:Connect(function()
+        playTween(toggleButton, Ease.Fast, {
+            BackgroundColor3 = Theme.AccentSoft,
+        })
+    end)
+
+    toggleButton.MouseLeave:Connect(function()
+        playTween(toggleButton, Ease.Fast, {
+            BackgroundColor3 = accent,
+        })
+    end)
+
     local shadow = Instance.new("Frame")
     shadow.Name = "Shadow"
     shadow.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -557,10 +587,12 @@ function Lib:CreateWindow(config)
         Root = root,
         Sidebar = sidebar,
         Content = content,
+        ToggleButton = toggleButton,
         Accent = accent,
         Tabs = {},
         ActiveTab = nil,
         Minimized = false,
+        Visible = true,
         Closed = false,
         _destroyed = false,
     }
@@ -620,6 +652,7 @@ function Lib:CreateWindow(config)
         window._destroyed = true
         closed = true
         window.Closed = true
+        window.Visible = false
 
         cleanupInputConnections()
 
@@ -634,35 +667,44 @@ function Lib:CreateWindow(config)
 
     window.Destroy = destroyWindow
 
-    local function closeWindow()
+    local function setWindowVisible(state)
         if closed then
             return
         end
 
-        closed = true
-        window.Closed = true
-        resizeHandle.Visible = false
-        cleanupInputConnections()
+        state = state and true or false
 
-        playTween(root, Ease.In, {
-            BackgroundTransparency = 1,
-        })
+        if not state then
+            dragging = false
+            resizing = false
+            dragInputType = nil
+            resizeInputType = nil
+            dragTargetPosition = nil
 
-        playTween(rootStroke, Ease.In, {
-            Transparency = 1,
-        })
+            if activeDropdownClose then
+                pcall(activeDropdownClose)
+            end
+        end
 
-        playTween(shadow, Ease.In, {
-            BackgroundTransparency = 1,
-        })
+        wrapper.Visible = state
+        window.Visible = state
+        toggleButton.Text = state and "Fechar" or "Abrir"
+    end
 
-        playTween(wrapper, Ease.In, {
-            Size = UDim2.fromOffset(0, 0),
-        })
+    function window:SetVisible(state)
+        setWindowVisible(state)
+    end
 
-        task.delay(0.22, function()
-            destroyWindow()
-        end)
+    function window:Open()
+        setWindowVisible(true)
+    end
+
+    function window:Toggle()
+        setWindowVisible(not wrapper.Visible)
+    end
+
+    local function closeWindow()
+        setWindowVisible(false)
     end
 
     window.Close = closeWindow
@@ -873,6 +915,10 @@ function Lib:CreateWindow(config)
     end)
 
     closeButton.Activated:Connect(closeWindow)
+
+    toggleButton.Activated:Connect(function()
+        window:Toggle()
+    end)
 
     function window:SelectTab(target)
         if closed or not target or self.ActiveTab == target then
