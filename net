@@ -537,8 +537,8 @@ function Lib:CreateWindow(config)
     local root = Instance.new("Frame")
     root.Name = "Root"
     root.Size = UDim2.fromScale(1, 1)
-    root.BackgroundColor3 = Theme.Surface
-    root.BorderSizePixel = 0
+    sidebar.BackgroundColor3 = Theme.Surface
+sidebar.BackgroundTransparency = 1
     root.ClipsDescendants = true
     root.ZIndex = 1
     applyCorner(root)
@@ -803,6 +803,10 @@ function Lib:CreateWindow(config)
     end
 
     local function cleanupInputConnections()
+        if window._windowDragBeganConnection then
+    window._windowDragBeganConnection:Disconnect()
+    window._windowDragBeganConnection = nil
+end
         dragging = false
         resizing = false
         dragTargetPosition = nil
@@ -1034,8 +1038,78 @@ function Lib:CreateWindow(config)
         stopRenderLoop()
     end
 
-    topBar.InputBegan:Connect(beginDrag)
-    resizeHandle.InputBegan:Connect(beginResize)
+local function isVisibleInWindow(object)
+    local current = object
+
+    while current do
+        if current:IsA("GuiObject") and not current.Visible then
+            return false
+        end
+
+        if current == root then
+            return true
+        end
+
+        current = current.Parent
+    end
+
+    return false
+end
+
+local function isInteractiveAt(point, inputType)
+    for _, object in ipairs(root:GetDescendants()) do
+        if object:IsA("GuiObject")
+            and isVisibleInWindow(object)
+            and pointInside(object, point) then
+
+            if object:IsA("TextButton")
+                or object:IsA("ImageButton")
+                or object:IsA("TextBox") then
+                return true
+            end
+
+            if inputType == Enum.UserInputType.Touch
+                and object:IsA("ScrollingFrame") then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+window._windowDragBeganConnection = UserInputService.InputBegan:Connect(function(input)
+    if closed or not window.Visible then
+        return
+    end
+
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1
+        and input.UserInputType ~= Enum.UserInputType.Touch then
+        return
+    end
+
+    if UserInputService:GetFocusedTextBox() then
+        return
+    end
+
+    if activeDropdownClose then
+        return
+    end
+
+    local point = Vector2.new(input.Position.X, input.Position.Y)
+
+    if not pointInside(root, point) then
+        return
+    end
+
+    if isInteractiveAt(point, input.UserInputType) then
+        return
+    end
+
+    beginDrag(input)
+end)
+
+resizeHandle.InputBegan:Connect(beginResize)
 
     window._inputChangedConnection = UserInputService.InputChanged:Connect(function(input)
         if closed or not wrapper.Parent or not window.Visible then
