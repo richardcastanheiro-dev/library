@@ -495,15 +495,18 @@ function Lib:CreateWindow(config)
     gui:SetAttribute("MikuAccent", accent)
     attachGui(gui)
 
-    local wrapper = Instance.new("Frame")
-    wrapper.Name = "Wrapper"
-    wrapper.AnchorPoint = Vector2.new(0.5, 0.5)
-    wrapper.Position = UDim2.fromOffset(viewport.X / 2, viewport.Y / 2)
-    wrapper.Size = baseSize
-    wrapper.BackgroundTransparency = 1
-    wrapper.BorderSizePixel = 0
-    wrapper.ClipsDescendants = false
-    wrapper.Parent = gui
+local wrapper = Instance.new("Frame")
+wrapper.Name = "Wrapper"
+wrapper.AnchorPoint = Vector2.zero
+wrapper.Position = UDim2.fromOffset(
+    (viewport.X - width) / 2,
+    (viewport.Y - height) / 2
+)
+wrapper.Size = baseSize
+wrapper.BackgroundTransparency = 1
+wrapper.BorderSizePixel = 0
+wrapper.ClipsDescendants = false
+wrapper.Parent = gui
 
     local toggleButton = Instance.new("TextButton")
     toggleButton.Name = "ToggleWindow"
@@ -764,11 +767,11 @@ function Lib:CreateWindow(config)
     local resizeInputType
     local dragInputObject
     local resizeInputObject
-    local dragStart
-    local startCenter
-    local resizeStart
-    local resizeStartSize
-    local resizeStartTopLeft
+local dragStart
+local startPosition
+local resizeStart
+local resizeStartSize
+local resizeStartTopLeft
     local resizeStartPosition
     local visibilityTween
     local visibilityToken = 0
