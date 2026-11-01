@@ -747,6 +747,8 @@ function Lib:CreateWindow(config)
     local resizeStartSize
     local resizeStartTopLeft
     local dragTargetPosition
+    local visibilityTween
+    local visibilityToken = 0
 
     local function clampWindowCenter(x, y)
         local view = getViewport()
@@ -829,6 +831,12 @@ function Lib:CreateWindow(config)
         closed = true
         window.Closed = true
         window.Visible = false
+        visibilityToken = visibilityToken + 1
+
+        if visibilityTween then
+            visibilityTween:Cancel()
+            visibilityTween = nil
+        end
 
         removeTracked(trackedWindows, window)
         cleanupInputConnections()
@@ -852,6 +860,21 @@ function Lib:CreateWindow(config)
 
         state = state and true or false
 
+        if window.Visible == state then
+            return
+        end
+
+        window.Visible = state
+        toggleButton.Text = state and "Fechar" or "Abrir"
+
+        visibilityToken = visibilityToken + 1
+        local currentToken = visibilityToken
+
+        if visibilityTween then
+            visibilityTween:Cancel()
+            visibilityTween = nil
+        end
+
         if not state then
             dragging = false
             resizing = false
@@ -863,11 +886,57 @@ function Lib:CreateWindow(config)
             if activeDropdownClose then
                 pcall(activeDropdownClose)
             end
+        elseif not wrapper.Visible then
+            wrapper.Visible = true
+            wrapper.Size = UDim2.fromOffset(0, 0)
+            wrapper.Rotation = -6
         end
 
-        wrapper.Visible = state
-        window.Visible = state
-        toggleButton.Text = state and "Fechar" or "Abrir"
+        local targetSize
+
+        if state then
+            if window.Minimized then
+                targetSize = UDim2.fromOffset(baseSize.X.Offset, 55)
+            else
+                targetSize = baseSize
+            end
+        else
+            targetSize = UDim2.fromOffset(0, 0)
+        end
+
+        visibilityTween = TweenService:Create(
+            wrapper,
+            state and Ease.Normal or Ease.In,
+            {
+                Size = targetSize,
+                Rotation = state and 0 or 6,
+            }
+        )
+
+        local currentTween = visibilityTween
+
+        currentTween.Completed:Connect(function(playbackState)
+            if currentToken ~= visibilityToken or closed then
+                return
+            end
+
+            visibilityTween = nil
+
+            if playbackState ~= Enum.PlaybackState.Completed then
+                return
+            end
+
+            if not state then
+                wrapper.Visible = false
+                wrapper.Size = UDim2.fromOffset(0, 0)
+            else
+                wrapper.Size = targetSize
+            end
+
+            wrapper.Rotation = 0
+        end)
+
+        currentTween:Play()
     end
 
     function window:SetVisible(state)
@@ -879,7 +948,7 @@ function Lib:CreateWindow(config)
     end
 
     function window:Toggle()
-        setWindowVisible(not wrapper.Visible)
+        setWindowVisible(not self.Visible)
     end
 
     function window:SetKeybind(value)
@@ -911,7 +980,7 @@ function Lib:CreateWindow(config)
     window.Close = closeWindow
 
     local function beginDrag(input)
-        if closed or resizing then
+        if closed or resizing or not window.Visible then
             return
         end
 
@@ -943,7 +1012,7 @@ function Lib:CreateWindow(config)
     end
 
     local function beginResize(input)
-        if closed or window.Minimized then
+        if closed or window.Minimized or not window.Visible then
             return
         end
 
@@ -966,7 +1035,7 @@ function Lib:CreateWindow(config)
     resizeHandle.InputBegan:Connect(beginResize)
 
     window._inputChangedConnection = UserInputService.InputChanged:Connect(function(input)
-        if closed or not wrapper.Parent then
+        if closed or not wrapper.Parent or not window.Visible then
             return
         end
 
@@ -1070,9 +1139,11 @@ function Lib:CreateWindow(config)
             targetSize = baseSize
         end
 
-        playTween(wrapper, Ease.Normal, {
-            Size = targetSize,
-        })
+        if self.Visible then
+            playTween(wrapper, Ease.Normal, {
+                Size = targetSize,
+            })
+        end
     end
 
     function window:SetSize(newWidth, newHeight)
@@ -1091,7 +1162,7 @@ function Lib:CreateWindow(config)
 
         baseSize = UDim2.fromOffset(newWidth, newHeight)
 
-        if not self.Minimized then
+        if not self.Minimized and self.Visible then
             playTween(wrapper, Ease.Normal, {
                 Size = baseSize,
             })
