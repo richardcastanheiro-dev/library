@@ -463,14 +463,14 @@ function Lib:CreateWindow(config)
     attachGui(gui)
 
     local wrapper = Instance.new("Frame")
-wrapper.Name = "Wrapper"
-wrapper.AnchorPoint = Vector2.new(0.5, 0.5)
-wrapper.Position = UDim2.fromOffset(viewport.X / 2, viewport.Y / 2)
-wrapper.Size = baseSize
-wrapper.BackgroundTransparency = 1
-wrapper.BorderSizePixel = 0
-wrapper.ClipsDescendants = false
-wrapper.Parent = gui
+    wrapper.Name = "Wrapper"
+    wrapper.AnchorPoint = Vector2.new(0.5, 0.5)
+    wrapper.Position = UDim2.fromOffset(viewport.X / 2, viewport.Y / 2)
+    wrapper.Size = baseSize
+    wrapper.BackgroundTransparency = 1
+    wrapper.BorderSizePixel = 0
+    wrapper.ClipsDescendants = false
+    wrapper.Parent = gui
 
     local toggleButton = Instance.new("TextButton")
     toggleButton.Name = "ToggleWindow"
