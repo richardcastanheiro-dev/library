@@ -1259,20 +1259,23 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
 
     local row = Instance.new("Frame")
     row.Name = "Slider"
-    row.Size = UDim2.new(1, 0, 0, 18)
+    row.Size = UDim2.new(1, 0, 0, 32)
     row.BackgroundTransparency = 1
     row.BorderSizePixel = 0
     row.Parent = parent
 
     local track = Instance.new("Frame")
     track.Name = "Track"
-    track.Size = UDim2.new(1, 0, 0, 17)
-    track.Position = UDim2.new(0, 0, 0.5, -8)
+    track.Size = UDim2.new(1, 0, 0, 26)
+    track.Position = UDim2.new(0, 0, 0.5, -13)
     track.BackgroundColor3 = Color3.fromRGB(31, 32, 31)
     track.BorderSizePixel = 0
     track.ClipsDescendants = true
     track.Parent = row
-    applyCorner(track, 2)
+
+    local trackCorner = Instance.new("UICorner")
+    trackCorner.CornerRadius = UDim.new(1, 0)
+    trackCorner.Parent = track
 
     local fill = Instance.new("Frame")
     fill.Name = "Fill"
@@ -1281,7 +1284,10 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
     fill.BorderSizePixel = 0
     fill.ZIndex = 2
     fill.Parent = track
-    applyCorner(fill, 2)
+
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = fill
 
     local click = Instance.new("TextButton")
     click.Name = "ClickArea"
@@ -1294,10 +1300,11 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
 
     local valueLabel = Instance.new("TextLabel")
     valueLabel.Name = "Value"
-    valueLabel.AnchorPoint = Vector2.new(0.5, 0)
+    valueLabel.Size = UDim2.fromScale(1, 1)
+    valueLabel.Position = UDim2.fromScale(0, 0)
     valueLabel.BackgroundTransparency = 1
     valueLabel.Font = Theme.Font
-    valueLabel.TextSize = 11
+    valueLabel.TextSize = 13
     valueLabel.TextColor3 = Color3.fromRGB(240, 255, 248)
     valueLabel.TextXAlignment = Enum.TextXAlignment.Center
     valueLabel.TextYAlignment = Enum.TextYAlignment.Center
@@ -1320,31 +1327,8 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
             numberText = string.format("%.1f", value)
         end
 
-        local caption = numberText .. " " .. unit
-        valueLabel.Text = caption
-
-        local trackWidth = track.AbsoluteSize.X
-        local trackHeight = track.AbsoluteSize.Y
-        local labelWidth = math.min(
-            trackWidth,
-            math.max(60, math.ceil(#caption * 6.5 + 8))
-        )
-
-        local fillWidth = trackWidth * alpha
-        local centerX = fillWidth / 2
-
-        if trackWidth >= labelWidth and labelWidth > 0 then
-            centerX = clamp(
-                centerX,
-                labelWidth / 2,
-                trackWidth - labelWidth / 2
-            )
-        else
-            centerX = trackWidth / 2
-        end
-
-        valueLabel.Size = UDim2.fromOffset(labelWidth, trackHeight)
-        valueLabel.Position = UDim2.fromOffset(centerX, 0)
+        -- O texto fica sempre no centro da barra.
+        valueLabel.Text = numberText .. " " .. unit
     end
 
     local function set(newValue, fireCallback)
@@ -1399,10 +1383,12 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
         updateFromX(input.Position.X)
 
         changedConnection = UserInputService.InputChanged:Connect(function(changedInput)
-            local mouseMove = dragInputType == Enum.UserInputType.MouseButton1
+            local mouseMove =
+                dragInputType == Enum.UserInputType.MouseButton1
                 and changedInput.UserInputType == Enum.UserInputType.MouseMovement
 
-            local touchMove = dragInputType == Enum.UserInputType.Touch
+            local touchMove =
+                dragInputType == Enum.UserInputType.Touch
                 and changedInput.UserInputType == Enum.UserInputType.Touch
 
             if dragging and (mouseMove or touchMove) and row.Parent then
@@ -1417,9 +1403,7 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
         end)
     end)
 
-    track:GetPropertyChangedSignal("AbsoluteSize"):Connect(render)
     row.Destroying:Connect(stopDragging)
-
     render()
 
     return {
