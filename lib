@@ -6,11 +6,13 @@ local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-local RayfieldLibrary = {}
-RayfieldLibrary.Version = "Gen2 6.4.0"
-RayfieldLibrary.Flags = {}
-RayfieldLibrary.Windows = {}
-RayfieldLibrary._watermarks = {}
+local Rayfield = {}
+Rayfield.Version = "Sirius Gen2"
+Rayfield.Flags = {}
+Rayfield._controls = {}
+Rayfield.Windows = {}
+Rayfield._watermarks = {}
+Rayfield._notifyCount = 0
 
 local Theme = {
 	Bg = Color3.fromRGB(12, 12, 16),
@@ -31,23 +33,13 @@ local Normal = TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.O
 local Slow = TweenInfo.new(0.32, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
 local In = TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
 
-RayfieldLibrary.Theme = Theme
-RayfieldLibrary.Tween = {
+Rayfield.Theme = Theme
+Rayfield.Tween = {
 	Fast = Fast,
 	Normal = Normal,
 	Slow = Slow,
 	In = In
 }
-
-local RayfieldFolder = "Rayfield"
-local ConfigurationFolder = RayfieldFolder .. "/Configurations"
-local ConfigurationExtension = ".rfld"
-local ConfigurationSettings = {
-	Enabled = false,
-	FolderName = nil,
-	FileName = nil
-}
-local ConfigurationLoaded = false
 
 local function make(class, properties, parent)
 	local object = Instance.new(class)
@@ -217,7 +209,7 @@ local function resolveImage(image)
 	return text
 end
 
-local function keyFromString(value)
+local function keyFromValue(value)
 	if typeof(value) == "EnumItem" then
 		return value
 	end
@@ -227,12 +219,6 @@ local function keyFromString(value)
 		end)
 		if ok and key then
 			return key
-		end
-		local ok2, input = pcall(function()
-			return Enum.UserInputType[value]
-		end)
-		if ok2 and input then
-			return input
 		end
 	end
 	return nil
@@ -248,6 +234,13 @@ local function keyToString(value)
 	return "None"
 end
 
+local ConfigurationSettings = {
+	Enabled = false,
+	FolderName = nil,
+	FileName = nil
+}
+local ConfigurationLoaded = false
+
 local function fileSupport()
 	return type(writefile) == "function" and type(readfile) == "function" and type(isfile) == "function"
 end
@@ -260,14 +253,14 @@ local function ensureFolders()
 	if not folderSupport() then
 		return
 	end
-	if not isfolder(RayfieldFolder) then
-		makefolder(RayfieldFolder)
+	if not isfolder("Rayfield") then
+		makefolder("Rayfield")
 	end
-	if not isfolder(ConfigurationFolder) then
-		makefolder(ConfigurationFolder)
+	if not isfolder("Rayfield/Configurations") then
+		makefolder("Rayfield/Configurations")
 	end
 	if ConfigurationSettings.FolderName then
-		local path = ConfigurationFolder .. "/" .. ConfigurationSettings.FolderName
+		local path = "Rayfield/Configurations/" .. ConfigurationSettings.FolderName
 		if not isfolder(path) then
 			makefolder(path)
 		end
@@ -279,9 +272,9 @@ local function configurationPath()
 		return nil
 	end
 	if ConfigurationSettings.FolderName then
-		return ConfigurationFolder .. "/" .. ConfigurationSettings.FolderName .. "/" .. ConfigurationSettings.FileName .. ConfigurationExtension
+		return "Rayfield/Configurations/" .. ConfigurationSettings.FolderName .. "/" .. ConfigurationSettings.FileName .. ".rfld"
 	end
-	return ConfigurationFolder .. "/" .. ConfigurationSettings.FileName .. ConfigurationExtension
+	return "Rayfield/Configurations/" .. ConfigurationSettings.FileName .. ".rfld"
 end
 
 local function packColor(color)
@@ -311,18 +304,15 @@ local function SaveConfiguration()
 		return
 	end
 	local data = {}
-	for flagName, flag in pairs(RayfieldLibrary.Flags) do
-		if flag.Type == "ColorPicker" then
-			data[flagName] = packColor(flag.Color or Color3.fromRGB(255, 255, 255))
-		else
-			local value = flag.CurrentValue
-			if value == nil then
-				value = flag.CurrentKeybind
-			end
-			if value == nil then
-				value = flag.CurrentOption
-			end
-			data[flagName] = value
+	for flagName, control in pairs(Rayfield._controls) do
+		if control.Type == "ColorPicker" then
+			data[flagName] = packColor(control.Color or Color3.fromRGB(255, 255, 255))
+		elseif control.Type == "Dropdown" then
+			data[flagName] = control.CurrentOption
+		elseif control.Type == "Keybind" then
+			data[flagName] = control.CurrentKeybind
+		elseif control.Type == "Toggle" or control.Type == "Checkbox" or control.Type == "Slider" or control.Type == "Input" then
+			data[flagName] = control.CurrentValue
 		end
 	end
 	ensureFolders()
@@ -336,7 +326,7 @@ local function SaveConfiguration()
 	end
 end
 
-function RayfieldLibrary.newDraggable(target, handle, isLocked)
+function Rayfield.newDraggable(target, handle, isLocked)
 	local dragging = false
 	local startMouse
 	local startX
@@ -417,7 +407,7 @@ function RayfieldLibrary.newDraggable(target, handle, isLocked)
 	return api
 end
 
-function RayfieldLibrary.newResize(target, callback)
+function Rayfield.newResize(target, callback)
 	local dragging = false
 	local startMouse
 	local startSize
@@ -865,27 +855,27 @@ function Window:CreateTab(name, image)
 		self:SelectTab(entry)
 	end
 	refreshPage(page)
-
 	local tabObject = setmetatable({
 		Name = name,
 		Page = page,
 		Button = tabButton,
 		Window = self,
-		_entry = entry
+		_entry = entry,
+		_controls = {}
 	}, Tab)
 	entry.Object = tabObject
 	return tabObject
 end
 
-function Window:Notify(config)
-	return RayfieldLibrary:Notify(config)
+function Window:Notify(config, text, duration)
+	return Rayfield:Notify(config, text, duration)
 end
 
 function Window:CreateWatermark(text)
-	return RayfieldLibrary:CreateWatermark(text)
+	return Rayfield:CreateWatermark(text)
 end
 
-function Window:SetKeybind(key)
+function Window:SetToggleKeybind(key)
 	if self._keybindConnection then
 		self._keybindConnection:Disconnect()
 		self._keybindConnection = nil
@@ -894,12 +884,20 @@ function Window:SetKeybind(key)
 		self._keybind = false
 		return
 	end
-	self._keybind = keyFromString(key) or key
+	local resolved = keyFromValue(key)
+	self._keybind = resolved or key
+	if not resolved then
+		return
+	end
 	self._keybindConnection = UserInputService.InputBegan:Connect(function(input)
-		if input.KeyCode == self._keybind and not UserInputService:GetFocusedTextBox() then
+		if input.KeyCode == resolved and not UserInputService:GetFocusedTextBox() then
 			self:Toggle()
 		end
 	end)
+end
+
+function Window:SetKeybind(key)
+	self:SetToggleKeybind(key)
 end
 
 function Window:GetKeybind()
@@ -929,9 +927,16 @@ function Window:Destroy()
 		self._keybindConnection = nil
 	end
 	self:_cancelTweens()
-	for index = #RayfieldLibrary.Windows, 1, -1 do
-		if RayfieldLibrary.Windows[index] == self then
-			table.remove(RayfieldLibrary.Windows, index)
+	for _, entry in ipairs(self._tabs) do
+		if entry.Object and type(entry.Object.Destroy) == "function" then
+			pcall(function()
+				entry.Object:Destroy()
+			end)
+		end
+	end
+	for index = #Rayfield.Windows, 1, -1 do
+		if Rayfield.Windows[index] == self then
+			table.remove(Rayfield.Windows, index)
 		end
 	end
 	local sharedTable = getShared(false)
@@ -942,513 +947,6 @@ function Window:Destroy()
 		self._screenGui:Destroy()
 		self._screenGui = nil
 	end
-end
-
-local function createKeyPrompt(windowObject, settings, onSuccess)
-	local keys = {}
-	if type(settings.Key) == "table" then
-		for _, value in ipairs(settings.Key) do
-			table.insert(keys, tostring(value))
-		end
-	elseif settings.Key ~= nil then
-		table.insert(keys, tostring(settings.Key))
-	end
-	local gui = make("ScreenGui", {
-		Name = "RayfieldKeySystem",
-		DisplayOrder = 10002,
-		IgnoreGuiInset = true,
-		ResetOnSpawn = false,
-		ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	}, PlayerGui)
-	local card = make("Frame", {
-		Name = "Card",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(340, 190),
-		BackgroundColor3 = Theme.Surface,
-		BorderSizePixel = 0
-	}, gui)
-	corner(card, 14)
-	stroke(card, Theme.Stroke, 0.25)
-	make("TextLabel", {
-		Name = "Title",
-		Position = UDim2.fromOffset(18, 16),
-		Size = UDim2.new(1, -36, 0, 20),
-		BackgroundTransparency = 1,
-		Text = tostring(settings.Title or "Key System"),
-		Font = Enum.Font.GothamBold,
-		TextSize = 15,
-		TextColor3 = Theme.Text,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		BorderSizePixel = 0
-	}, card)
-	make("TextLabel", {
-		Name = "Subtitle",
-		Position = UDim2.fromOffset(18, 38),
-		Size = UDim2.new(1, -36, 0, 40),
-		BackgroundTransparency = 1,
-		Text = tostring(settings.Subtitle or "") .. "\n" .. tostring(settings.Note or ""),
-		Font = Enum.Font.Gotham,
-		TextSize = 12,
-		TextColor3 = Theme.TextDim,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Top,
-		TextWrapped = true,
-		BorderSizePixel = 0
-	}, card)
-	local box = make("TextBox", {
-		Name = "Input",
-		Position = UDim2.fromOffset(18, 96),
-		Size = UDim2.new(1, -36, 0, 34),
-		BackgroundColor3 = Theme.SurfaceHi,
-		BorderSizePixel = 0,
-		Text = "",
-		PlaceholderText = "Key",
-		PlaceholderColor3 = Theme.TextDim,
-		Font = Enum.Font.Gotham,
-		TextSize = 13,
-		TextColor3 = Theme.Text,
-		ClearTextOnFocus = false
-	}, card)
-	corner(box, 8)
-	stroke(box, Theme.Stroke, 0.4)
-	make("UIPadding", {
-		PaddingLeft = UDim.new(0, 10),
-		PaddingRight = UDim.new(0, 10)
-	}, box)
-	local submit = make("TextButton", {
-		Name = "Submit",
-		Position = UDim2.fromOffset(18, 140),
-		Size = UDim2.new(1, -36, 0, 34),
-		BackgroundColor3 = Theme.Accent,
-		BackgroundTransparency = 0.15,
-		Text = "Check",
-		Font = Enum.Font.GothamBold,
-		TextSize = 13,
-		TextColor3 = Theme.Text,
-		AutoButtonColor = false,
-		BorderSizePixel = 0
-	}, card)
-	corner(submit, 8)
-	local drag = RayfieldLibrary.newDraggable(card, card, false)
-	local function finish(success)
-		if success then
-			if drag then
-				pcall(function()
-					drag.Destroy()
-				end)
-			end
-			gui:Destroy()
-			onSuccess()
-		else
-			box.Text = ""
-			box.PlaceholderText = "Invalid key"
-			TweenService:Create(box, Fast, {
-				BackgroundColor3 = Theme.Danger
-			}):Play()
-			task.delay(0.35, function()
-				if box.Parent then
-					TweenService:Create(box, Fast, {
-						BackgroundColor3 = Theme.SurfaceHi
-					}):Play()
-				end
-			end)
-		end
-	end
-	submit.MouseButton1Click:Connect(function()
-		local text = box.Text
-		local matched = false
-		for _, value in ipairs(keys) do
-			if text == value then
-				matched = true
-				break
-			end
-		end
-		finish(matched)
-	end)
-	box.FocusLost:Connect(function(enter)
-		if enter then
-			submit:Activate()
-		end
-	end)
-end
-
-function RayfieldLibrary:CreateWindow(config)
-	config = type(config) == "table" and config or {}
-	local sharedTable = getShared(true)
-	if sharedTable then
-		local old = sharedTable.RayfieldInstance
-		if old and not sharedTable.RayfieldKeepOldInstance and type(old.Destroy) == "function" then
-			pcall(function()
-				old:Destroy()
-			end)
-		end
-	end
-	local self = setmetatable({}, Window)
-	self._tweens = {}
-	self._tabs = {}
-	self._visible = false
-	self._minimized = false
-	self._animToken = 0
-	self._destroyed = false
-	self._locked = false
-
-	if type(config.ConfigurationSaving) == "table" then
-		ConfigurationSettings.Enabled = config.ConfigurationSaving.Enabled == true
-		ConfigurationSettings.FolderName = config.ConfigurationSaving.FolderName
-		ConfigurationSettings.FileName = config.ConfigurationSaving.FileName or tostring(config.Name or "Rayfield")
-		if ConfigurationSettings.Enabled then
-			ensureFolders()
-		end
-	end
-
-	local viewport = getViewport()
-	local requestedWidth = 1000
-	local requestedHeight = 580
-	if typeof(config.Size) == "UDim2" then
-		if config.Size.X.Scale > 0 then
-			requestedWidth = viewport.X * config.Size.X.Scale
-		elseif config.Size.X.Offset > 0 then
-			requestedWidth = config.Size.X.Offset
-		end
-		if config.Size.Y.Scale > 0 then
-			requestedHeight = viewport.Y * config.Size.Y.Scale
-		elseif config.Size.Y.Offset > 0 then
-			requestedHeight = config.Size.Y.Offset
-		end
-	end
-	if tonumber(config.Width) then
-		requestedWidth = tonumber(config.Width)
-	end
-	if tonumber(config.Height) then
-		requestedHeight = tonumber(config.Height)
-	end
-	local maxWidth = math.max(320, viewport.X - 40)
-	local minWidth = math.min(360, maxWidth)
-	local maxHeight = math.max(240, viewport.Y - 40)
-	local minHeight = math.min(240, maxHeight)
-	local width = math.clamp(requestedWidth, minWidth, maxWidth)
-	local height = math.clamp(requestedHeight, minHeight, maxHeight)
-	self._baseSize = Vector2.new(width, height)
-	local screenGui = make("ScreenGui", {
-		Name = "Rayfield",
-		DisplayOrder = config.DisplayOrder or 9999,
-		IgnoreGuiInset = true,
-		ResetOnSpawn = false,
-		ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	}, PlayerGui)
-	screenGui:SetAttribute("RayfieldVersion", RayfieldLibrary.Version)
-	self._screenGui = screenGui
-	local startX = math.max(0, (viewport.X - width) / 2)
-	local startY = math.max(0, (viewport.Y - height) / 2)
-	local wrapper = make("Frame", {
-		Name = "Window",
-		AnchorPoint = Vector2.new(0, 0),
-		Position = UDim2.fromOffset(startX, startY),
-		Size = UDim2.fromOffset(width, height),
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		ClipsDescendants = false,
-		Active = false,
-		Visible = false
-	}, screenGui)
-	self._wrapper = wrapper
-	local root = make("CanvasGroup", {
-		Name = "Root",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Theme.Bg,
-		BackgroundTransparency = 0,
-		BorderSizePixel = 0,
-		ClipsDescendants = true,
-		Active = false
-	}, wrapper)
-	corner(root, 14)
-	stroke(root, Theme.Stroke, 0.25)
-	self._root = root
-	local rootScale = make("UIScale", {
-		Name = "Scale",
-		Scale = 1
-	}, root)
-	self._rootScale = rootScale
-	local topBar = make("Frame", {
-		Name = "TopBar",
-		Size = UDim2.new(1, 0, 0, 55),
-		BackgroundColor3 = Theme.Surface,
-		BorderSizePixel = 0
-	}, root)
-	self._topBar = topBar
-	make("Frame", {
-		Name = "Border",
-		Position = UDim2.new(0, 0, 1, -1),
-		Size = UDim2.new(1, 0, 0, 1),
-		BackgroundColor3 = Theme.Stroke,
-		BackgroundTransparency = 0.3,
-		BorderSizePixel = 0
-	}, topBar)
-	local titleLabel = make("TextLabel", {
-		Name = "Title",
-		Position = UDim2.fromOffset(18, 8),
-		Size = UDim2.new(1, -120, 0, 20),
-		BackgroundTransparency = 1,
-		Text = "Rayfield",
-		Font = Enum.Font.GothamBold,
-		TextSize = 15,
-		TextColor3 = Theme.Text,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		BorderSizePixel = 0
-	}, topBar)
-	self._titleLabel = titleLabel
-	local subtitleLabel = make("TextLabel", {
-		Name = "Subtitle",
-		Position = UDim2.fromOffset(18, 29),
-		Size = UDim2.new(1, -120, 0, 14),
-		BackgroundTransparency = 1,
-		Text = RayfieldLibrary.Version,
-		Font = Enum.Font.GothamMedium,
-		TextSize = 11,
-		TextColor3 = Theme.TextDim,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		BorderSizePixel = 0
-	}, topBar)
-	self._subtitleLabel = subtitleLabel
-	local minButton = make("TextButton", {
-		Name = "MinimizeButton",
-		Position = UDim2.new(1, -72, 0.5, -14),
-		Size = UDim2.fromOffset(28, 28),
-		BackgroundColor3 = Theme.Accent,
-		BackgroundTransparency = 1,
-		Text = "−",
-		TextColor3 = Theme.TextDim,
-		Font = Enum.Font.GothamBold,
-		TextSize = 18,
-		AutoButtonColor = false,
-		BorderSizePixel = 0,
-		ZIndex = 6
-	}, topBar)
-	corner(minButton, 7)
-	minButton.MouseEnter:Connect(function()
-		TweenService:Create(minButton, Fast, {
-			BackgroundTransparency = 0.78,
-			TextColor3 = Theme.AccentSoft
-		}):Play()
-	end)
-	minButton.MouseLeave:Connect(function()
-		TweenService:Create(minButton, Fast, {
-			BackgroundTransparency = 1,
-			TextColor3 = Theme.TextDim
-		}):Play()
-	end)
-	minButton.MouseButton1Click:Connect(function()
-		self:Minimize()
-	end)
-	local closeButton = make("TextButton", {
-		Name = "CloseButton",
-		Position = UDim2.new(1, -38, 0.5, -14),
-		Size = UDim2.fromOffset(28, 28),
-		BackgroundColor3 = Theme.Danger,
-		BackgroundTransparency = 1,
-		Text = "×",
-		TextColor3 = Theme.TextDim,
-		Font = Enum.Font.GothamBold,
-		TextSize = 18,
-		AutoButtonColor = false,
-		BorderSizePixel = 0,
-		ZIndex = 6
-	}, topBar)
-	corner(closeButton, 7)
-	closeButton.MouseEnter:Connect(function()
-		TweenService:Create(closeButton, Fast, {
-			BackgroundTransparency = 0.82,
-			TextColor3 = Theme.Danger
-		}):Play()
-	end)
-	closeButton.MouseLeave:Connect(function()
-		TweenService:Create(closeButton, Fast, {
-			BackgroundTransparency = 1,
-			TextColor3 = Theme.TextDim
-		}):Play()
-	end)
-	closeButton.MouseButton1Click:Connect(function()
-		self:Close()
-	end)
-	local dragArea = make("Frame", {
-		Name = "DragArea",
-		Position = UDim2.fromOffset(0, 0),
-		Size = UDim2.new(1, -100, 0, 55),
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		Active = true,
-		ZIndex = 4
-	}, topBar)
-	self._dragArea = dragArea
-	self._dragApi = RayfieldLibrary.newDraggable(wrapper, dragArea, false)
-	local sidebar = make("Frame", {
-		Name = "Sidebar",
-		Position = UDim2.new(0, 0, 0, 55),
-		Size = UDim2.new(0, 156, 1, -55),
-		BackgroundColor3 = Theme.Surface,
-		BorderSizePixel = 0
-	}, root)
-	self._sidebar = sidebar
-	make("Frame", {
-		Name = "Border",
-		Position = UDim2.new(1, -1, 0, 0),
-		Size = UDim2.new(0, 1, 1, 0),
-		BackgroundColor3 = Theme.Stroke,
-		BackgroundTransparency = 0.25,
-		BorderSizePixel = 0
-	}, sidebar)
-	local tabList = make("Frame", {
-		Name = "TabList",
-		Position = UDim2.fromOffset(8, 10),
-		Size = UDim2.new(1, -16, 1, -100),
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0
-	}, sidebar)
-	make("UIListLayout", {
-		Padding = UDim.new(0, 8),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		HorizontalAlignment = Enum.HorizontalAlignment.Left,
-		VerticalAlignment = Enum.VerticalAlignment.Top
-	}, tabList)
-	self._tabList = tabList
-	local profileCard = make("Frame", {
-		Name = "ProfileCard",
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, 8, 1, -10),
-		Size = UDim2.new(1, -16, 0, 58),
-		BackgroundColor3 = Theme.SurfaceAlt,
-		BackgroundTransparency = 0.45,
-		BorderSizePixel = 0
-	}, sidebar)
-	corner(profileCard, 10)
-	stroke(profileCard, Theme.Stroke, 0.45)
-	self._profileCard = profileCard
-	local avatar = make("ImageLabel", {
-		Name = "Avatar",
-		Position = UDim2.fromOffset(9, 9),
-		Size = UDim2.fromOffset(40, 40),
-		BackgroundColor3 = Theme.SurfaceHi,
-		BackgroundTransparency = 0,
-		BorderSizePixel = 0,
-		Image = "",
-		ImageTransparency = 0,
-		ScaleType = Enum.ScaleType.Crop,
-		ClipsDescendants = true
-	}, profileCard)
-	corner(avatar, 20)
-	stroke(avatar, Theme.Stroke, 0.5)
-	self._avatar = avatar
-	local profileName = make("TextLabel", {
-		Name = "Name",
-		Position = UDim2.fromOffset(58, 11),
-		Size = UDim2.new(1, -68, 0, 18),
-		BackgroundTransparency = 1,
-		Text = LocalPlayer.DisplayName or LocalPlayer.Name,
-		Font = Enum.Font.GothamBold,
-		TextSize = 12,
-		TextColor3 = Theme.Text,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		BorderSizePixel = 0
-	}, profileCard)
-	self._profileName = profileName
-	local profileTag = make("TextLabel", {
-		Name = "Tag",
-		Position = UDim2.fromOffset(58, 29),
-		Size = UDim2.new(1, -68, 0, 16),
-		BackgroundTransparency = 1,
-		Text = "@" .. LocalPlayer.Name,
-		Font = Enum.Font.GothamMedium,
-		TextSize = 10,
-		TextColor3 = Theme.AccentSoft,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		BorderSizePixel = 0
-	}, profileCard)
-	self._profileTag = profileTag
-	local content = make("Frame", {
-		Name = "Content",
-		Position = UDim2.new(0, 157, 0, 55),
-		Size = UDim2.new(1, -157, 1, -55),
-		BackgroundColor3 = Theme.Bg,
-		BorderSizePixel = 0,
-		ClipsDescendants = true
-	}, root)
-	self._content = content
-
-	self._resizeApi = RayfieldLibrary.newResize(wrapper, function(newWidth, newHeight)
-		if self._destroyed then
-			return
-		end
-		self._baseSize = Vector2.new(newWidth, newHeight)
-		for _, entry in ipairs(self._tabs) do
-			refreshPage(entry.Page)
-		end
-		self:ClampPosition()
-	end)
-
-	self:SetTitle(config.Name or config.Title or "Rayfield", config.LoadingSubtitle or config.Subtitle or RayfieldLibrary.Version)
-	self:SetProfile({
-		Name = LocalPlayer.DisplayName or LocalPlayer.Name,
-		Tag = "@" .. LocalPlayer.Name
-	})
-	if type(config.Profile) == "table" then
-		self:SetProfile(config.Profile)
-	end
-	task.spawn(function()
-		local ok, image = pcall(function()
-			return Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
-		end)
-		if ok and image and self._avatar and self._avatar.Parent then
-			self._avatar.Image = image
-		end
-	end)
-
-	local keybind = config.ToggleUIKeybind
-	if keybind == nil then
-		keybind = config.Keybind
-	end
-	if keybind == nil then
-		keybind = Enum.KeyCode.RightControl
-	end
-	self:SetKeybind(keybind)
-
-	table.insert(RayfieldLibrary.Windows, self)
-
-	local startVisible = config.StartVisible
-	if startVisible == nil then
-		startVisible = config.Visible
-	end
-	if startVisible == nil then
-		startVisible = true
-	end
-
-	if config.KeySystem then
-		self._locked = true
-		self._rootScale.Scale = 1
-		self._root.GroupTransparency = 1
-		self._wrapper.Visible = false
-		createKeyPrompt(self, type(config.KeySettings) == "table" and config.KeySettings or {}, function()
-			self._locked = false
-			if startVisible then
-				self:Open()
-			end
-		end)
-	elseif startVisible then
-		self:Open()
-	else
-		self._rootScale.Scale = 1
-		self._root.GroupTransparency = 1
-		self._wrapper.Visible = false
-	end
-
-	if sharedTable then
-		sharedTable.RayfieldInstance = self
-	end
-	return self
 end
 
 function Tab:CreateSection(name)
@@ -1485,6 +983,7 @@ function Tab:CreateSection(name)
 		section:Destroy()
 		refreshPage(page)
 	end
+	table.insert(self._controls, object)
 	return object
 end
 
@@ -1504,15 +1003,16 @@ function Tab:CreateDivider()
 		divider:Destroy()
 		refreshPage(page)
 	end
+	table.insert(self._controls, object)
 	return object
 end
 
-function Tab:CreateLabel(text, icon, color, ignoreTheme)
+function Tab:CreateLabel(text, icon, color)
 	local label, page = prepareControl(self.Page, 20, "TextLabel")
 	label.Text = tostring(text or "")
 	label.Font = Enum.Font.Gotham
 	label.TextSize = 13
-	label.TextColor3 = (typeof(color) == "Color3" and ignoreTheme) and color or (typeof(color) == "Color3" and color or Theme.Text)
+	label.TextColor3 = typeof(color) == "Color3" and color or Theme.Text
 	label.TextWrapped = true
 	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.TextYAlignment = Enum.TextYAlignment.Top
@@ -1523,8 +1023,10 @@ function Tab:CreateLabel(text, icon, color, ignoreTheme)
 		Type = "Label",
 		Instance = label
 	}
-	function object:Set(newText, newIcon, newColor)
-		label.Text = tostring(newText)
+	function object:Set(newText, newColor)
+		if newText ~= nil then
+			label.Text = tostring(newText)
+		end
 		if typeof(newColor) == "Color3" then
 			label.TextColor3 = newColor
 		end
@@ -1534,6 +1036,7 @@ function Tab:CreateLabel(text, icon, color, ignoreTheme)
 		label:Destroy()
 		refreshPage(page)
 	end
+	table.insert(self._controls, object)
 	return object
 end
 
@@ -1601,6 +1104,7 @@ function Tab:CreateParagraph(config)
 		frame:Destroy()
 		refreshPage(page)
 	end
+	table.insert(self._controls, object)
 	return object
 end
 
@@ -1643,6 +1147,7 @@ function Tab:CreateButton(config)
 		button:Destroy()
 		refreshPage(page)
 	end
+	table.insert(self._controls, object)
 	return object
 end
 
@@ -1704,6 +1209,9 @@ function Tab:CreateToggle(config)
 		TweenService:Create(knob, Normal, {
 			Position = object.CurrentValue and UDim2.new(1, -19, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)
 		}):Play()
+		if config.Flag then
+			Rayfield.Flags[config.Flag] = object.CurrentValue
+		end
 		if fire then
 			safeCall(config.Callback, object.CurrentValue)
 			SaveConfiguration()
@@ -1729,7 +1237,8 @@ function Tab:CreateToggle(config)
 	end
 	function object:Destroy()
 		if config.Flag then
-			RayfieldLibrary.Flags[config.Flag] = nil
+			Rayfield.Flags[config.Flag] = nil
+			Rayfield._controls[config.Flag] = nil
 		end
 		row:Destroy()
 		refreshPage(page)
@@ -1738,8 +1247,114 @@ function Tab:CreateToggle(config)
 	apply(object.CurrentValue, false)
 	refreshPage(page)
 	if config.Flag then
-		RayfieldLibrary.Flags[config.Flag] = object
+		Rayfield._controls[config.Flag] = object
+		Rayfield.Flags[config.Flag] = object.CurrentValue
 	end
+	table.insert(self._controls, object)
+	return object
+end
+
+function Tab:CreateCheckbox(config)
+	config = type(config) == "table" and config or {}
+	local row, page = prepareControl(self.Page, 38, "TextButton")
+	row.BackgroundColor3 = Theme.SurfaceAlt
+	row.BackgroundTransparency = 1
+	row.Text = ""
+	row.AutoButtonColor = false
+	row.BorderSizePixel = 0
+	corner(row, 9)
+	local box = make("Frame", {
+		Name = "Box",
+		Position = UDim2.fromOffset(12, 10),
+		Size = UDim2.fromOffset(18, 18),
+		BackgroundColor3 = Theme.SurfaceHi,
+		BorderSizePixel = 0
+	}, row)
+	corner(box, 5)
+	stroke(box, Theme.Stroke, 0.4)
+	local mark = make("TextLabel", {
+		Name = "Mark",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Text = "✓",
+		Font = Enum.Font.GothamBold,
+		TextSize = 15,
+		TextColor3 = Theme.Text,
+		TextTransparency = 1,
+		BorderSizePixel = 0
+	}, box)
+	make("TextLabel", {
+		Name = "Label",
+		Position = UDim2.fromOffset(40, 0),
+		Size = UDim2.new(1, -52, 1, 0),
+		BackgroundTransparency = 1,
+		Text = tostring(config.Name or "Checkbox"),
+		Font = Enum.Font.Gotham,
+		TextSize = 14,
+		TextColor3 = Theme.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		BorderSizePixel = 0
+	}, row)
+
+	local object = {
+		Type = "Checkbox",
+		Instance = row,
+		CurrentValue = config.CurrentValue == true
+	}
+
+	local function apply(state, fire)
+		object.CurrentValue = state == true
+		row:SetAttribute("RayfieldValue", object.CurrentValue)
+		TweenService:Create(box, Fast, {
+			BackgroundColor3 = object.CurrentValue and Theme.Accent or Theme.SurfaceHi,
+			BackgroundTransparency = object.CurrentValue and 0.1 or 0
+		}):Play()
+		TweenService:Create(mark, Fast, {
+			TextTransparency = object.CurrentValue and 0 or 1
+		}):Play()
+		if config.Flag then
+			Rayfield.Flags[config.Flag] = object.CurrentValue
+		end
+		if fire then
+			safeCall(config.Callback, object.CurrentValue)
+			SaveConfiguration()
+		end
+	end
+
+	row.MouseEnter:Connect(function()
+		TweenService:Create(row, Fast, {
+			BackgroundTransparency = 0.82
+		}):Play()
+	end)
+	row.MouseLeave:Connect(function()
+		TweenService:Create(row, Fast, {
+			BackgroundTransparency = 1
+		}):Play()
+	end)
+	row.MouseButton1Click:Connect(function()
+		apply(not object.CurrentValue, true)
+	end)
+
+	function object:Set(value)
+		apply(value == true, true)
+	end
+	function object:Destroy()
+		if config.Flag then
+			Rayfield.Flags[config.Flag] = nil
+			Rayfield._controls[config.Flag] = nil
+		end
+		row:Destroy()
+		refreshPage(page)
+	end
+
+	apply(object.CurrentValue, false)
+	refreshPage(page)
+	if config.Flag then
+		Rayfield._controls[config.Flag] = object
+		Rayfield.Flags[config.Flag] = object.CurrentValue
+	end
+	table.insert(self._controls, object)
 	return object
 end
 
@@ -1833,6 +1448,9 @@ function Tab:CreateSlider(config)
 		knob.Position = UDim2.new(fraction, 0, 0.5, 0)
 		valueLabel.Text = formatValue(value) .. (suffix ~= "" and (" " .. suffix) or "")
 		frame:SetAttribute("RayfieldValue", value)
+		if config.Flag then
+			Rayfield.Flags[config.Flag] = value
+		end
 		if fire then
 			safeCall(config.Callback, value)
 			SaveConfiguration()
@@ -1881,7 +1499,8 @@ function Tab:CreateSlider(config)
 	function object:Destroy()
 		stop()
 		if config.Flag then
-			RayfieldLibrary.Flags[config.Flag] = nil
+			Rayfield.Flags[config.Flag] = nil
+			Rayfield._controls[config.Flag] = nil
 		end
 		frame:Destroy()
 		refreshPage(page)
@@ -1890,8 +1509,10 @@ function Tab:CreateSlider(config)
 	apply(object.CurrentValue, false)
 	refreshPage(page)
 	if config.Flag then
-		RayfieldLibrary.Flags[config.Flag] = object
+		Rayfield._controls[config.Flag] = object
+		Rayfield.Flags[config.Flag] = object.CurrentValue
 	end
+	table.insert(self._controls, object)
 	return object
 end
 
@@ -1943,10 +1564,16 @@ function Tab:CreateInput(config)
 
 	box.FocusLost:Connect(function()
 		object.CurrentValue = box.Text
+		if config.Flag then
+			Rayfield.Flags[config.Flag] = object.CurrentValue
+		end
 		safeCall(config.Callback, box.Text)
 		if config.RemoveTextAfterFocusLost then
 			box.Text = ""
 			object.CurrentValue = ""
+			if config.Flag then
+				Rayfield.Flags[config.Flag] = object.CurrentValue
+			end
 		end
 		SaveConfiguration()
 	end)
@@ -1954,12 +1581,16 @@ function Tab:CreateInput(config)
 	function object:Set(value)
 		box.Text = tostring(value)
 		object.CurrentValue = box.Text
+		if config.Flag then
+			Rayfield.Flags[config.Flag] = object.CurrentValue
+		end
 		safeCall(config.Callback, box.Text)
 		SaveConfiguration()
 	end
 	function object:Destroy()
 		if config.Flag then
-			RayfieldLibrary.Flags[config.Flag] = nil
+			Rayfield.Flags[config.Flag] = nil
+			Rayfield._controls[config.Flag] = nil
 		end
 		frame:Destroy()
 		refreshPage(page)
@@ -1967,8 +1598,10 @@ function Tab:CreateInput(config)
 
 	refreshPage(page)
 	if config.Flag then
-		RayfieldLibrary.Flags[config.Flag] = object
+		Rayfield._controls[config.Flag] = object
+		Rayfield.Flags[config.Flag] = object.CurrentValue
 	end
+	table.insert(self._controls, object)
 	return object
 end
 
@@ -2106,6 +1739,9 @@ function Tab:CreateDropdown(config)
 			button.TextColor3 = selected and Theme.AccentSoft or Theme.Text
 			button.Font = selected and Enum.Font.GothamBold or Enum.Font.Gotham
 		end
+		if config.Flag then
+			Rayfield.Flags[config.Flag] = object.CurrentOption
+		end
 	end
 
 	local function listHeight()
@@ -2226,7 +1862,8 @@ function Tab:CreateDropdown(config)
 
 	function object:Destroy()
 		if config.Flag then
-			RayfieldLibrary.Flags[config.Flag] = nil
+			Rayfield.Flags[config.Flag] = nil
+			Rayfield._controls[config.Flag] = nil
 		end
 		control:Destroy()
 		refreshPage(page)
@@ -2235,8 +1872,10 @@ function Tab:CreateDropdown(config)
 	rebuild()
 	refreshPage(page)
 	if config.Flag then
-		RayfieldLibrary.Flags[config.Flag] = object
+		Rayfield._controls[config.Flag] = object
+		Rayfield.Flags[config.Flag] = object.CurrentOption
 	end
+	table.insert(self._controls, object)
 	return object
 end
 
@@ -2292,6 +1931,9 @@ function Tab:CreateKeybind(config)
 				listening = false
 				object.CurrentKeybind = input.KeyCode.Name
 				button.Text = object.CurrentKeybind
+				if config.Flag then
+					Rayfield.Flags[config.Flag] = object.CurrentKeybind
+				end
 				safeCall(config.ChangedCallback, object.CurrentKeybind)
 				SaveConfiguration()
 			end
@@ -2320,6 +1962,9 @@ function Tab:CreateKeybind(config)
 	function object:Set(value)
 		object.CurrentKeybind = keyToString(value)
 		button.Text = object.CurrentKeybind
+		if config.Flag then
+			Rayfield.Flags[config.Flag] = object.CurrentKeybind
+		end
 		safeCall(config.ChangedCallback, object.CurrentKeybind)
 		SaveConfiguration()
 	end
@@ -2331,7 +1976,8 @@ function Tab:CreateKeybind(config)
 			endedConnection:Disconnect()
 		end
 		if config.Flag then
-			RayfieldLibrary.Flags[config.Flag] = nil
+			Rayfield.Flags[config.Flag] = nil
+			Rayfield._controls[config.Flag] = nil
 		end
 		row:Destroy()
 		refreshPage(page)
@@ -2339,8 +1985,10 @@ function Tab:CreateKeybind(config)
 
 	refreshPage(page)
 	if config.Flag then
-		RayfieldLibrary.Flags[config.Flag] = object
+		Rayfield._controls[config.Flag] = object
+		Rayfield.Flags[config.Flag] = object.CurrentKeybind
 	end
+	table.insert(self._controls, object)
 	return object
 end
 
@@ -2533,6 +2181,9 @@ function Tab:CreateColorPicker(config)
 		object.CurrentValue = object.Color
 		preview.BackgroundColor3 = object.Color
 		control:SetAttribute("RayfieldValue", tostring(object.Color))
+		if config.Flag then
+			Rayfield.Flags[config.Flag] = object.Color
+		end
 		if fire then
 			safeCall(config.Callback, object.Color)
 			SaveConfiguration()
@@ -2574,7 +2225,8 @@ function Tab:CreateColorPicker(config)
 	end
 	function object:Destroy()
 		if config.Flag then
-			RayfieldLibrary.Flags[config.Flag] = nil
+			Rayfield.Flags[config.Flag] = nil
+			Rayfield._controls[config.Flag] = nil
 		end
 		control:Destroy()
 		refreshPage(page)
@@ -2583,14 +2235,30 @@ function Tab:CreateColorPicker(config)
 	commit(false)
 	refreshPage(page)
 	if config.Flag then
-		RayfieldLibrary.Flags[config.Flag] = object
+		Rayfield._controls[config.Flag] = object
+		Rayfield.Flags[config.Flag] = object.Color
 	end
+	table.insert(self._controls, object)
 	return object
 end
 
+function Tab:Destroy()
+	local controls = self._controls
+	self._controls = {}
+	for _, control in ipairs(controls) do
+		if type(control.Destroy) == "function" then
+			pcall(function()
+				control:Destroy()
+			end)
+		end
+	end
+end
+
+Tab.AddCheckbox = Tab.CreateCheckbox
+
 local function ensureNotifyGui()
-	if RayfieldLibrary._notifyGui and RayfieldLibrary._notifyGui.Parent then
-		return RayfieldLibrary._notifyStack
+	if Rayfield._notifyGui and Rayfield._notifyGui.Parent then
+		return Rayfield._notifyStack
 	end
 	local gui = make("ScreenGui", {
 		Name = "RayfieldNotify",
@@ -2614,13 +2282,13 @@ local function ensureNotifyGui()
 		HorizontalAlignment = Enum.HorizontalAlignment.Right,
 		VerticalAlignment = Enum.VerticalAlignment.Top
 	}, stack)
-	RayfieldLibrary._notifyGui = gui
-	RayfieldLibrary._notifyStack = stack
-	RayfieldLibrary._notifyCount = 0
+	Rayfield._notifyGui = gui
+	Rayfield._notifyStack = stack
+	Rayfield._notifyCount = 0
 	return stack
 end
 
-function RayfieldLibrary:Notify(config, text, duration)
+function Rayfield:Notify(config, text, duration)
 	local title
 	local content
 	local image
@@ -2640,7 +2308,7 @@ function RayfieldLibrary:Notify(config, text, duration)
 	duration = tonumber(duration) or 4
 
 	local stack = ensureNotifyGui()
-	RayfieldLibrary._notifyCount = RayfieldLibrary._notifyCount + 1
+	Rayfield._notifyCount = Rayfield._notifyCount + 1
 
 	local actionList = {}
 	if type(actions) == "table" then
@@ -2664,7 +2332,7 @@ function RayfieldLibrary:Notify(config, text, duration)
 		BorderSizePixel = 0,
 		GroupTransparency = 1,
 		ClipsDescendants = true,
-		LayoutOrder = RayfieldLibrary._notifyCount
+		LayoutOrder = Rayfield._notifyCount
 	}, stack)
 	corner(card, 12)
 	stroke(card, Theme.Stroke, 0.3)
@@ -2802,8 +2470,8 @@ function RayfieldLibrary:Notify(config, text, duration)
 end
 
 local function ensureWatermarkGui()
-	if RayfieldLibrary._watermarkGui and RayfieldLibrary._watermarkGui.Parent then
-		return RayfieldLibrary._watermarkGui
+	if Rayfield._watermarkGui and Rayfield._watermarkGui.Parent then
+		return Rayfield._watermarkGui
 	end
 	local gui = make("ScreenGui", {
 		Name = "RayfieldWatermark",
@@ -2812,11 +2480,11 @@ local function ensureWatermarkGui()
 		ResetOnSpawn = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	}, PlayerGui)
-	RayfieldLibrary._watermarkGui = gui
+	Rayfield._watermarkGui = gui
 	return gui
 end
 
-function RayfieldLibrary:CreateWatermark(text)
+function Rayfield:CreateWatermark(text)
 	local gui = ensureWatermarkGui()
 	local frame = make("TextButton", {
 		Name = "Watermark",
@@ -2845,7 +2513,7 @@ function RayfieldLibrary:CreateWatermark(text)
 		PaddingLeft = UDim.new(0, 12),
 		PaddingRight = UDim.new(0, 8)
 	}, frame)
-	local drag = RayfieldLibrary.newDraggable(frame, frame, false)
+	local drag = Rayfield.newDraggable(frame, frame, false)
 	local api = {}
 	function api.SetText(value)
 		frame.Text = tostring(value)
@@ -2860,20 +2528,540 @@ function RayfieldLibrary:CreateWatermark(text)
 			end)
 			drag = nil
 		end
-		for index = #RayfieldLibrary._watermarks, 1, -1 do
-			if RayfieldLibrary._watermarks[index] == api then
-				table.remove(RayfieldLibrary._watermarks, index)
+		for index = #Rayfield._watermarks, 1, -1 do
+			if Rayfield._watermarks[index] == api then
+				table.remove(Rayfield._watermarks, index)
 			end
 		end
 		if frame.Parent then
 			frame:Destroy()
 		end
 	end
-	table.insert(RayfieldLibrary._watermarks, api)
+	table.insert(Rayfield._watermarks, api)
 	return api
 end
 
-function RayfieldLibrary:LoadConfiguration()
+local function createKeyPrompt(settings, onSuccess)
+	settings = type(settings) == "table" and settings or {}
+	local keys = {}
+	if type(settings.Key) == "table" then
+		for _, value in ipairs(settings.Key) do
+			table.insert(keys, tostring(value))
+		end
+	elseif settings.Key ~= nil then
+		table.insert(keys, tostring(settings.Key))
+	end
+	local gui = make("ScreenGui", {
+		Name = "RayfieldKeySystem",
+		DisplayOrder = 10002,
+		IgnoreGuiInset = true,
+		ResetOnSpawn = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	}, PlayerGui)
+	local card = make("Frame", {
+		Name = "Card",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(340, 210),
+		BackgroundColor3 = Theme.Surface,
+		BorderSizePixel = 0
+	}, gui)
+	corner(card, 14)
+	stroke(card, Theme.Stroke, 0.25)
+	make("TextLabel", {
+		Name = "Title",
+		Position = UDim2.fromOffset(18, 16),
+		Size = UDim2.new(1, -36, 0, 20),
+		BackgroundTransparency = 1,
+		Text = tostring(settings.Title or "Key System"),
+		Font = Enum.Font.GothamBold,
+		TextSize = 15,
+		TextColor3 = Theme.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		BorderSizePixel = 0
+	}, card)
+	make("TextLabel", {
+		Name = "Subtitle",
+		Position = UDim2.fromOffset(18, 38),
+		Size = UDim2.new(1, -36, 0, 50),
+		BackgroundTransparency = 1,
+		Text = tostring(settings.Subtitle or ""),
+		Font = Enum.Font.Gotham,
+		TextSize = 12,
+		TextColor3 = Theme.TextDim,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		TextWrapped = true,
+		BorderSizePixel = 0
+	}, card)
+	local box = make("TextBox", {
+		Name = "Input",
+		Position = UDim2.fromOffset(18, 96),
+		Size = UDim2.new(1, -36, 0, 34),
+		BackgroundColor3 = Theme.SurfaceHi,
+		BorderSizePixel = 0,
+		Text = "",
+		PlaceholderText = tostring(settings.Note or "Key"),
+		PlaceholderColor3 = Theme.TextDim,
+		Font = Enum.Font.Gotham,
+		TextSize = 13,
+		TextColor3 = Theme.Text,
+		ClearTextOnFocus = false
+	}, card)
+	corner(box, 8)
+	stroke(box, Theme.Stroke, 0.4)
+	make("UIPadding", {
+		PaddingLeft = UDim.new(0, 10),
+		PaddingRight = UDim.new(0, 10)
+	}, box)
+	local submit = make("TextButton", {
+		Name = "Submit",
+		Position = UDim2.fromOffset(18, 152),
+		Size = UDim2.new(1, -36, 0, 34),
+		BackgroundColor3 = Theme.Accent,
+		BackgroundTransparency = 0.15,
+		Text = "Check",
+		Font = Enum.Font.GothamBold,
+		TextSize = 13,
+		TextColor3 = Theme.Text,
+		AutoButtonColor = false,
+		BorderSizePixel = 0
+	}, card)
+	corner(submit, 8)
+	local drag = Rayfield.newDraggable(card, card, false)
+	local function finish(success)
+		if success then
+			if drag then
+				pcall(function()
+					drag.Destroy()
+				end)
+			end
+			gui:Destroy()
+			onSuccess()
+		else
+			box.Text = ""
+			box.PlaceholderText = "Invalid key"
+			TweenService:Create(box, Fast, {
+				BackgroundColor3 = Theme.Danger
+			}):Play()
+			task.delay(0.35, function()
+				if box.Parent then
+					TweenService:Create(box, Fast, {
+						BackgroundColor3 = Theme.SurfaceHi
+					}):Play()
+				end
+			end)
+		end
+	end
+	submit.MouseButton1Click:Connect(function()
+		local text = box.Text
+		local matched = false
+		for _, value in ipairs(keys) do
+			if text == value then
+				matched = true
+				break
+			end
+		end
+		finish(matched)
+	end)
+	box.FocusLost:Connect(function(enter)
+		if enter then
+			submit:Activate()
+		end
+	end)
+end
+
+function Rayfield:CreateWindow(config)
+	config = type(config) == "table" and config or {}
+	local sharedTable = getShared(true)
+	if sharedTable then
+		local old = sharedTable.RayfieldInstance
+		if old and not sharedTable.RayfieldKeepOldInstance and type(old.Destroy) == "function" then
+			pcall(function()
+				old:Destroy()
+			end)
+		end
+	end
+	local self = setmetatable({}, Window)
+	self._tweens = {}
+	self._tabs = {}
+	self._visible = false
+	self._minimized = false
+	self._animToken = 0
+	self._destroyed = false
+	self._locked = false
+
+	if type(config.ConfigurationSaving) == "table" then
+		ConfigurationSettings.Enabled = config.ConfigurationSaving.Enabled == true
+		ConfigurationSettings.FolderName = config.ConfigurationSaving.FolderName
+		ConfigurationSettings.FileName = config.ConfigurationSaving.FileName or tostring(config.Name or "Rayfield")
+		if ConfigurationSettings.Enabled then
+			ensureFolders()
+		end
+	end
+
+	local viewport = getViewport()
+	local requestedWidth = 1000
+	local requestedHeight = 580
+	if typeof(config.Size) == "UDim2" then
+		if config.Size.X.Scale > 0 then
+			requestedWidth = viewport.X * config.Size.X.Scale
+		elseif config.Size.X.Offset > 0 then
+			requestedWidth = config.Size.X.Offset
+		end
+		if config.Size.Y.Scale > 0 then
+			requestedHeight = viewport.Y * config.Size.Y.Scale
+		elseif config.Size.Y.Offset > 0 then
+			requestedHeight = config.Size.Y.Offset
+		end
+	end
+	if tonumber(config.Width) then
+		requestedWidth = tonumber(config.Width)
+	end
+	if tonumber(config.Height) then
+		requestedHeight = tonumber(config.Height)
+	end
+	local maxWidth = math.max(320, viewport.X - 40)
+	local minWidth = math.min(360, maxWidth)
+	local maxHeight = math.max(240, viewport.Y - 40)
+	local minHeight = math.min(240, maxHeight)
+	local width = math.clamp(requestedWidth, minWidth, maxWidth)
+	local height = math.clamp(requestedHeight, minHeight, maxHeight)
+	self._baseSize = Vector2.new(width, height)
+
+	local screenGui = make("ScreenGui", {
+		Name = "Rayfield",
+		DisplayOrder = config.DisplayOrder or 9999,
+		IgnoreGuiInset = true,
+		ResetOnSpawn = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	}, PlayerGui)
+	screenGui:SetAttribute("RayfieldVersion", Rayfield.Version)
+	self._screenGui = screenGui
+
+	local startX = math.max(0, (viewport.X - width) / 2)
+	local startY = math.max(0, (viewport.Y - height) / 2)
+	local wrapper = make("Frame", {
+		Name = "Window",
+		AnchorPoint = Vector2.new(0, 0),
+		Position = UDim2.fromOffset(startX, startY),
+		Size = UDim2.fromOffset(width, height),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ClipsDescendants = false,
+		Active = false,
+		Visible = false
+	}, screenGui)
+	self._wrapper = wrapper
+
+	local root = make("CanvasGroup", {
+		Name = "Root",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Theme.Bg,
+		BackgroundTransparency = 0,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		Active = false
+	}, wrapper)
+	corner(root, 14)
+	stroke(root, Theme.Stroke, 0.25)
+	self._root = root
+
+	local rootScale = make("UIScale", {
+		Name = "Scale",
+		Scale = 1
+	}, root)
+	self._rootScale = rootScale
+
+	local topBar = make("Frame", {
+		Name = "TopBar",
+		Size = UDim2.new(1, 0, 0, 55),
+		BackgroundColor3 = Theme.Surface,
+		BorderSizePixel = 0
+	}, root)
+	self._topBar = topBar
+	make("Frame", {
+		Name = "Border",
+		Position = UDim2.new(0, 0, 1, -1),
+		Size = UDim2.new(1, 0, 0, 1),
+		BackgroundColor3 = Theme.Stroke,
+		BackgroundTransparency = 0.3,
+		BorderSizePixel = 0
+	}, topBar)
+
+	local titleLabel = make("TextLabel", {
+		Name = "Title",
+		Position = UDim2.fromOffset(18, 8),
+		Size = UDim2.new(1, -120, 0, 20),
+		BackgroundTransparency = 1,
+		Text = "Rayfield",
+		Font = Enum.Font.GothamBold,
+		TextSize = 15,
+		TextColor3 = Theme.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		BorderSizePixel = 0
+	}, topBar)
+	self._titleLabel = titleLabel
+	local subtitleLabel = make("TextLabel", {
+		Name = "Subtitle",
+		Position = UDim2.fromOffset(18, 29),
+		Size = UDim2.new(1, -120, 0, 14),
+		BackgroundTransparency = 1,
+		Text = Rayfield.Version,
+		Font = Enum.Font.GothamMedium,
+		TextSize = 11,
+		TextColor3 = Theme.TextDim,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		BorderSizePixel = 0
+	}, topBar)
+	self._subtitleLabel = subtitleLabel
+
+	local minButton = make("TextButton", {
+		Name = "MinimizeButton",
+		Position = UDim2.new(1, -72, 0.5, -14),
+		Size = UDim2.fromOffset(28, 28),
+		BackgroundColor3 = Theme.Accent,
+		BackgroundTransparency = 1,
+		Text = "−",
+		TextColor3 = Theme.TextDim,
+		Font = Enum.Font.GothamBold,
+		TextSize = 18,
+		AutoButtonColor = false,
+		BorderSizePixel = 0,
+		ZIndex = 6
+	}, topBar)
+	corner(minButton, 7)
+	minButton.MouseEnter:Connect(function()
+		TweenService:Create(minButton, Fast, {
+			BackgroundTransparency = 0.78,
+			TextColor3 = Theme.AccentSoft
+		}):Play()
+	end)
+	minButton.MouseLeave:Connect(function()
+		TweenService:Create(minButton, Fast, {
+			BackgroundTransparency = 1,
+			TextColor3 = Theme.TextDim
+		}):Play()
+	end)
+	minButton.MouseButton1Click:Connect(function()
+		self:Minimize()
+	end)
+
+	local closeButton = make("TextButton", {
+		Name = "CloseButton",
+		Position = UDim2.new(1, -38, 0.5, -14),
+		Size = UDim2.fromOffset(28, 28),
+		BackgroundColor3 = Theme.Danger,
+		BackgroundTransparency = 1,
+		Text = "×",
+		TextColor3 = Theme.TextDim,
+		Font = Enum.Font.GothamBold,
+		TextSize = 18,
+		AutoButtonColor = false,
+		BorderSizePixel = 0,
+		ZIndex = 6
+	}, topBar)
+	corner(closeButton, 7)
+	closeButton.MouseEnter:Connect(function()
+		TweenService:Create(closeButton, Fast, {
+			BackgroundTransparency = 0.82,
+			TextColor3 = Theme.Danger
+		}):Play()
+	end)
+	closeButton.MouseLeave:Connect(function()
+		TweenService:Create(closeButton, Fast, {
+			BackgroundTransparency = 1,
+			TextColor3 = Theme.TextDim
+		}):Play()
+	end)
+	closeButton.MouseButton1Click:Connect(function()
+		self:Close()
+	end)
+
+	local dragArea = make("Frame", {
+		Name = "DragArea",
+		Position = UDim2.fromOffset(0, 0),
+		Size = UDim2.new(1, -100, 0, 55),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Active = true,
+		ZIndex = 4
+	}, topBar)
+	self._dragArea = dragArea
+	self._dragApi = Rayfield.newDraggable(wrapper, dragArea, false)
+
+	local sidebar = make("Frame", {
+		Name = "Sidebar",
+		Position = UDim2.new(0, 0, 0, 55),
+		Size = UDim2.new(0, 156, 1, -55),
+		BackgroundColor3 = Theme.Surface,
+		BorderSizePixel = 0
+	}, root)
+	self._sidebar = sidebar
+	make("Frame", {
+		Name = "Border",
+		Position = UDim2.new(1, -1, 0, 0),
+		Size = UDim2.new(0, 1, 1, 0),
+		BackgroundColor3 = Theme.Stroke,
+		BackgroundTransparency = 0.25,
+		BorderSizePixel = 0
+	}, sidebar)
+
+	local tabList = make("Frame", {
+		Name = "TabList",
+		Position = UDim2.fromOffset(8, 10),
+		Size = UDim2.new(1, -16, 1, -100),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0
+	}, sidebar)
+	make("UIListLayout", {
+		Padding = UDim.new(0, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Left,
+		VerticalAlignment = Enum.VerticalAlignment.Top
+	}, tabList)
+	self._tabList = tabList
+
+	local profileCard = make("Frame", {
+		Name = "ProfileCard",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 8, 1, -10),
+		Size = UDim2.new(1, -16, 0, 58),
+		BackgroundColor3 = Theme.SurfaceAlt,
+		BackgroundTransparency = 0.45,
+		BorderSizePixel = 0
+	}, sidebar)
+	corner(profileCard, 10)
+	stroke(profileCard, Theme.Stroke, 0.45)
+	self._profileCard = profileCard
+
+	local avatar = make("ImageLabel", {
+		Name = "Avatar",
+		Position = UDim2.fromOffset(9, 9),
+		Size = UDim2.fromOffset(40, 40),
+		BackgroundColor3 = Theme.SurfaceHi,
+		BackgroundTransparency = 0,
+		BorderSizePixel = 0,
+		Image = "",
+		ImageTransparency = 0,
+		ScaleType = Enum.ScaleType.Crop,
+		ClipsDescendants = true
+	}, profileCard)
+	corner(avatar, 20)
+	stroke(avatar, Theme.Stroke, 0.5)
+	self._avatar = avatar
+
+	local profileName = make("TextLabel", {
+		Name = "Name",
+		Position = UDim2.fromOffset(58, 11),
+		Size = UDim2.new(1, -68, 0, 18),
+		BackgroundTransparency = 1,
+		Text = LocalPlayer.DisplayName or LocalPlayer.Name,
+		Font = Enum.Font.GothamBold,
+		TextSize = 12,
+		TextColor3 = Theme.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		BorderSizePixel = 0
+	}, profileCard)
+	self._profileName = profileName
+
+	local profileTag = make("TextLabel", {
+		Name = "Tag",
+		Position = UDim2.fromOffset(58, 29),
+		Size = UDim2.new(1, -68, 0, 16),
+		BackgroundTransparency = 1,
+		Text = "@" .. LocalPlayer.Name,
+		Font = Enum.Font.GothamMedium,
+		TextSize = 10,
+		TextColor3 = Theme.AccentSoft,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		BorderSizePixel = 0
+	}, profileCard)
+	self._profileTag = profileTag
+
+	local content = make("Frame", {
+		Name = "Content",
+		Position = UDim2.new(0, 157, 0, 55),
+		Size = UDim2.new(1, -157, 1, -55),
+		BackgroundColor3 = Theme.Bg,
+		BorderSizePixel = 0,
+		ClipsDescendants = true
+	}, root)
+	self._content = content
+
+	self._resizeApi = Rayfield.newResize(wrapper, function(newWidth, newHeight)
+		if self._destroyed then
+			return
+		end
+		self._baseSize = Vector2.new(newWidth, newHeight)
+		for _, entry in ipairs(self._tabs) do
+			refreshPage(entry.Page)
+		end
+		self:ClampPosition()
+	end)
+
+	self:SetTitle(config.Name or config.Title or "Rayfield", config.LoadingSubtitle or config.Subtitle or Rayfield.Version)
+	self:SetProfile({
+		Name = LocalPlayer.DisplayName or LocalPlayer.Name,
+		Tag = "@" .. LocalPlayer.Name
+	})
+	if type(config.Profile) == "table" then
+		self:SetProfile(config.Profile)
+	end
+	task.spawn(function()
+		local ok, image = pcall(function()
+			return Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+		end)
+		if ok and image and self._avatar and self._avatar.Parent then
+			self._avatar.Image = image
+		end
+	end)
+
+	local keybind = config.ToggleUIKeybind
+	if keybind ~= nil and keybind ~= false then
+		self:SetToggleKeybind(keybind)
+	end
+
+	table.insert(Rayfield.Windows, self)
+
+	local startVisible = config.StartVisible
+	if startVisible == nil then
+		startVisible = config.Visible
+	end
+	if startVisible == nil then
+		startVisible = true
+	end
+
+	if config.KeySystem then
+		self._locked = true
+		self._rootScale.Scale = 1
+		self._root.GroupTransparency = 1
+		self._wrapper.Visible = false
+		createKeyPrompt(type(config.KeySettings) == "table" and config.KeySettings or {}, function()
+			self._locked = false
+			if startVisible then
+				self:Open()
+			end
+		end)
+	elseif startVisible then
+		self:Open()
+	else
+		self._rootScale.Scale = 1
+		self._root.GroupTransparency = 1
+		self._wrapper.Visible = false
+	end
+
+	if sharedTable then
+		sharedTable.RayfieldInstance = self
+	end
+	return self
+end
+
+function Rayfield:LoadConfiguration()
 	if not ConfigurationSettings.Enabled then
 		ConfigurationLoaded = true
 		return
@@ -2903,13 +3091,13 @@ function RayfieldLibrary:LoadConfiguration()
 	end
 	if type(decoded) == "table" then
 		for flagName, flagValue in pairs(decoded) do
-			local flag = RayfieldLibrary.Flags[flagName]
-			if flag and type(flag.Set) == "function" then
+			local control = Rayfield._controls[flagName]
+			if control and type(control.Set) == "function" then
 				task.spawn(function()
-					if flag.Type == "ColorPicker" then
-						flag:Set(unpackColor(flagValue))
+					if control.Type == "ColorPicker" then
+						control:Set(unpackColor(flagValue))
 					else
-						flag:Set(flagValue)
+						control:Set(flagValue)
 					end
 				end)
 			end
@@ -2918,13 +3106,17 @@ function RayfieldLibrary:LoadConfiguration()
 	ConfigurationLoaded = true
 end
 
-function RayfieldLibrary:SetVisibility(value)
+function Rayfield:SaveConfiguration()
+	SaveConfiguration()
+end
+
+function Rayfield:SetVisibility(value)
 	for _, window in ipairs(self.Windows) do
 		window:SetVisible(value == true)
 	end
 end
 
-function RayfieldLibrary:IsVisible()
+function Rayfield:IsVisible()
 	for _, window in ipairs(self.Windows) do
 		if window:GetVisible() then
 			return true
@@ -2933,7 +3125,7 @@ function RayfieldLibrary:IsVisible()
 	return false
 end
 
-function RayfieldLibrary:DestroyAll()
+function Rayfield:DestroyAll()
 	local windows = self.Windows
 	self.Windows = {}
 	for index = #windows, 1, -1 do
@@ -2968,6 +3160,7 @@ function RayfieldLibrary:DestroyAll()
 	end
 	self._watermarkGui = nil
 	self.Flags = {}
+	self._controls = {}
 	ConfigurationLoaded = false
 	local sharedTable = getShared(false)
 	if sharedTable then
@@ -2975,44 +3168,19 @@ function RayfieldLibrary:DestroyAll()
 	end
 end
 
-function RayfieldLibrary:CloseAll()
+function Rayfield:CloseAll()
 	self:DestroyAll()
 end
 
-function RayfieldLibrary:Destroy()
+function Rayfield:Destroy()
 	self:DestroyAll()
 end
 
-function RayfieldLibrary.new(a, b)
-	if a == RayfieldLibrary then
-		return RayfieldLibrary:CreateWindow(b)
+function Rayfield.new(a, b)
+	if a == Rayfield then
+		return Rayfield:CreateWindow(b)
 	end
-	return RayfieldLibrary:CreateWindow(a)
+	return Rayfield:CreateWindow(a)
 end
 
-return RayfieldLibrary
-```
-
-**Uso (igual Rayfield):**
-
-```lua
-local Rayfield = loadstring(game:HttpGet("SEU_LINK"))()
-
-local Window = Rayfield:CreateWindow({
-	Name = "Miku Hub",
-	LoadingSubtitle = "by voce",
-	ToggleUIKeybind = "RightControl",
-	ConfigurationSaving = { Enabled = true, FileName = "MikuHub" },
-	KeySystem = false
-})
-
-local Tab = Window:CreateTab("Main", 4483362458)
-Tab:CreateSection("Combat")
-Tab:CreateToggle({ Name = "Aimbot", CurrentValue = false, Flag = "aim", Callback = function(v) print(v) end })
-Tab:CreateSlider({ Name = "FOV", Range = {0, 500}, Increment = 5, Suffix = "px", CurrentValue = 100, Flag = "fov", Callback = function(v) print(v) end })
-Tab:CreateDropdown({ Name = "Modo", Options = {"Head","Torso"}, CurrentOption = {"Head"}, MultipleOptions = false, Flag = "part", Callback = function(o) print(o[1]) end })
-Tab:CreateColorPicker({ Name = "Cor", Color = Color3.fromRGB(139,108,255), Flag = "cor", Callback = function(c) print(c) end })
-Tab:CreateKeybind({ Name = "Panic", CurrentKeybind = "P", HoldToInteract = false, Flag = "panic", Callback = function() end })
-Tab:CreateInput({ Name = "Nome", PlaceholderText = "digite", Flag = "nome", Callback = function(t) print(t) end })
-
-Rayfield:LoadConfiguration()
+return Rayfield
