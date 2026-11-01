@@ -1259,15 +1259,15 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
 
     local row = Instance.new("Frame")
     row.Name = "Slider"
-    row.Size = UDim2.new(1, 0, 0, 32)
+    row.Size = UDim2.new(1, 0, 0, 52)
     row.BackgroundTransparency = 1
     row.BorderSizePixel = 0
     row.Parent = parent
 
     local track = Instance.new("Frame")
     track.Name = "Track"
-    track.Size = UDim2.new(1, 0, 0, 26)
-    track.Position = UDim2.new(0, 0, 0.5, -13)
+    track.Size = UDim2.new(1, 0, 0, 42)
+    track.Position = UDim2.new(0, 0, 0.5, -21)
     track.BackgroundColor3 = Color3.fromRGB(31, 32, 31)
     track.BorderSizePixel = 0
     track.ClipsDescendants = true
@@ -1276,6 +1276,13 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
     local trackCorner = Instance.new("UICorner")
     trackCorner.CornerRadius = UDim.new(1, 0)
     trackCorner.Parent = track
+
+    local outline = Instance.new("UIStroke")
+    outline.Color = Color3.fromRGB(150, 225, 190)
+    outline.Thickness = 2
+    outline.Transparency = 0
+    outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    outline.Parent = track
 
     local fill = Instance.new("Frame")
     fill.Name = "Fill"
@@ -1303,8 +1310,8 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
     valueLabel.Size = UDim2.fromScale(1, 1)
     valueLabel.Position = UDim2.fromScale(0, 0)
     valueLabel.BackgroundTransparency = 1
-    valueLabel.Font = Theme.Font
-    valueLabel.TextSize = 13
+    valueLabel.Font = Theme.FontBold
+    valueLabel.TextSize = 15
     valueLabel.TextColor3 = Color3.fromRGB(240, 255, 248)
     valueLabel.TextXAlignment = Enum.TextXAlignment.Center
     valueLabel.TextYAlignment = Enum.TextYAlignment.Center
@@ -1327,7 +1334,6 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
             numberText = string.format("%.1f", value)
         end
 
-        -- O texto fica sempre no centro da barra.
         valueLabel.Text = numberText .. " " .. unit
     end
 
