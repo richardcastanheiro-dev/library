@@ -1915,8 +1915,13 @@ function Lib:CreateWatermark(config)
     config = type(config) == "table" and config or {}
 
     local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
     local player = Players.LocalPlayer
     local theme = self.Theme or {}
+
+    if not player then
+        player = Players.PlayerAdded:Wait()
+    end
 
     local accent = config.Accent
         or theme.Accent
@@ -1929,33 +1934,28 @@ function Lib:CreateWatermark(config)
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     gui.DisplayOrder = tonumber(config.DisplayOrder) or 10001
 
-    -- Tenta adicionar a interface ao gethui; se não estiver disponível,
-    -- usa PlayerGui e, por último, tenta CoreGui.
-    local attached = false
+    local parent
 
-    if type(gethui) == "function" then
-        local ok, hui = pcall(gethui)
+    if RunService:IsStudio() then
+        parent = player:WaitForChild("PlayerGui")
+    else
+        local ok, hui = pcall(function()
+            return gethui()
+        end)
+
         if ok and hui then
-            attached = pcall(function()
-                gui.Parent = hui
-            end)
+            parent = hui
+        else
+            parent = game:GetService("CoreGui")
         end
     end
 
-    if not attached and player then
-        attached = pcall(function()
-            gui.Parent = player:WaitForChild("PlayerGui")
-        end)
-    end
+    local attached = pcall(function()
+        gui.Parent = parent
+    end)
 
-    if not attached then
-        attached = pcall(function()
-            gui.Parent = game:GetService("CoreGui")
-        end)
-    end
-
-    if not attached then
-        return nil
+    if not attached or not gui.Parent then
+        gui.Parent = player:WaitForChild("PlayerGui")
     end
 
     local frame = Instance.new("Frame")
@@ -2019,9 +2019,7 @@ function Lib:CreateWatermark(config)
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.TextYAlignment = Enum.TextYAlignment.Center
     label.TextTruncate = Enum.TextTruncate.AtEnd
-    label.Text = tostring(
-        config.Text or ("Miku | " .. (player and player.Name or "Player"))
-    )
+    label.Text = tostring(config.Text or ("Miku | " .. player.Name))
     label.Parent = frame
 
     local dragCleanup
@@ -2038,23 +2036,23 @@ function Lib:CreateWatermark(config)
 
     local destroyed = false
 
-    local function cleanupDrag()
-        if dragCleanup then
-            local cleanup = dragCleanup
-            dragCleanup = nil
-            pcall(cleanup)
-        end
-    end
-
     local watermark = {
         Gui = gui,
         Frame = frame,
         Label = label,
     }
 
+    local function cleanup()
+        if dragCleanup then
+            local stopDragging = dragCleanup
+            dragCleanup = nil
+            pcall(stopDragging)
+        end
+    end
+
     gui.Destroying:Connect(function()
         destroyed = true
-        cleanupDrag()
+        cleanup()
     end)
 
     function watermark:SetText(text)
@@ -2069,16 +2067,24 @@ function Lib:CreateWatermark(config)
         end
     end
 
+    function watermark:SetAccent(color)
+        if not destroyed and typeof(color) == "Color3" then
+            accentBar.BackgroundColor3 = color
+            stroke.Color = color
+        end
+    end
+
     function watermark:Destroy()
         if destroyed then
             return
         end
 
         destroyed = true
-        cleanupDrag()
+        cleanup()
         gui:Destroy()
     end
 
     return watermark
 end
+
 return Lib
