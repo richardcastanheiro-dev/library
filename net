@@ -502,8 +502,8 @@ function Lib:CreateWindow(config)
     local root = Instance.new("Frame")
     root.Name = "Root"
     root.Size = UDim2.fromScale(1, 1)
-root.BackgroundTransparency = 0
-root.BackgroundColor3 = Theme.Surface
+    root.BackgroundColor3 = Theme.Surface
+    root.BackgroundTransparency = 0
     root.ClipsDescendants = true
     root.ZIndex = 1
     applyCorner(root, 14)
@@ -636,8 +636,8 @@ root.BackgroundColor3 = Theme.Surface
     sidebar.Name = "Sidebar"
     sidebar.Size = UDim2.new(0, 150, 1, -55)
     sidebar.Position = UDim2.new(0, 0, 0, 55)
-sidebar.BackgroundTransparency = 0
-sidebar.BackgroundColor3 = Theme.Surface
+    sidebar.BackgroundColor3 = Theme.Surface
+    sidebar.BackgroundTransparency = 0
     sidebar.BorderSizePixel = 0
     sidebar.ZIndex = 2
     applyPadding(sidebar, 8, 8, 10, 10)
