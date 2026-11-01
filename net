@@ -2320,6 +2320,7 @@ function Library:MakeDraggable(
     local InputChanged
 
     local SnapGuideX, SnapGuideY
+    local DragTween
 
     local function GetSnapGuides()
         if not SnapGuideX then
@@ -2438,7 +2439,14 @@ function Library:MakeDraggable(
                 end
             end
 
-            UI.Position = UDim2.new(FramePos.X.Scale, NewX, FramePos.Y.Scale, NewY)
+            local TargetPosition = UDim2.new(FramePos.X.Scale, NewX, FramePos.Y.Scale, NewY)
+            if DragTween then
+                DragTween:Cancel()
+            end
+            DragTween = TweenService:Create(UI, TweenInfo.new(0.075, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Position = TargetPosition,
+            })
+            DragTween:Play()
         end
     end)
 
@@ -7895,6 +7903,10 @@ do
             CornerRadius = UDim.new(1, 0),
             Parent = Ball,
         })
+        local SwitchScale = New("UIScale", {
+            Scale = 1,
+            Parent = Switch,
+        })
 
         function Toggle:UpdateColors()
             Toggle:Display()
@@ -7910,8 +7922,14 @@ do
             Switch.BackgroundTransparency = Toggle.Disabled and 0.75 or 0
             SwitchStroke.Transparency = Toggle.Disabled and 0.75 or 0
 
-            Switch.BackgroundColor3 = Toggle.Value and Library.Scheme.AccentColor or Library.Scheme.MainColor
-            SwitchStroke.Color = Toggle.Value and Library.Scheme.AccentColor or Library.Scheme.OutlineColor
+            local SwitchColor = Toggle.Value and Library.Scheme.AccentColor or Library.Scheme.MainColor
+            local StrokeColor = Toggle.Value and Library.Scheme.AccentColor or Library.Scheme.OutlineColor
+            TweenService:Create(Switch, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                BackgroundColor3 = SwitchColor,
+            }):Play()
+            TweenService:Create(SwitchStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+                Color = StrokeColor,
+            }):Play()
 
             Library.Registry[Switch].BackgroundColor3 = Toggle.Value and "AccentColor" or "MainColor"
             Library.Registry[SwitchStroke].Color = Toggle.Value and "AccentColor" or "OutlineColor"
@@ -7932,10 +7950,20 @@ do
             TweenService:Create(Label, Library.TweenInfo, {
                 TextTransparency = Toggle.Value and 0 or 0.4,
             }):Play()
-            TweenService:Create(Ball, Library.TweenInfo, {
+            TweenService:Create(Ball, TweenInfo.new(0.24, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
                 AnchorPoint = Vector2.new(Offset, 0),
                 Position = UDim2.fromScale(Offset, 0),
             }):Play()
+            TweenService:Create(SwitchScale, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Scale = Toggle.Value and 1.08 or 1,
+            }):Play()
+            task.delay(0.1, function()
+                if SwitchScale and SwitchScale.Parent then
+                    TweenService:Create(SwitchScale, TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                        Scale = 1,
+                    }):Play()
+                end
+            end)
 
             Ball.BackgroundColor3 = Library.Scheme.FontColor
             Library.Registry[Ball].BackgroundColor3 = "FontColor"
@@ -15130,9 +15158,24 @@ function Library:CreateWindow(WindowInfo)
         if Library.Animations and Library.Animations.ToggleWindow == true then
             local FadeTime = Library.WindowAnimationInfo.Time
             Fading = true
+            local WindowScale = MainFrame:FindFirstChildOfClass("UIScale")
+            if not WindowScale then
+                WindowScale = New("UIScale", {
+                    Scale = 1,
+                    Parent = MainFrame,
+                })
+            end
 
             if Library.Toggled then
                 MainFrame.Visible = true
+                WindowScale.Scale = 0.94
+                TweenService:Create(WindowScale, TweenInfo.new(FadeTime, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                    Scale = 1,
+                }):Play()
+            else
+                TweenService:Create(WindowScale, TweenInfo.new(FadeTime * 0.85, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+                    Scale = 0.92,
+                }):Play()
             end
 
             if Library.Toggled then
