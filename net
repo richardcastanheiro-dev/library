@@ -55,7 +55,7 @@ local Ease = {
 
 local Lib = {}
 Lib.__index = Lib
-Lib.Version = "4.0.0"
+Lib.Version = "4.1.0"
 Lib.Theme = Theme
 Lib.Ease = Ease
 
@@ -190,6 +190,37 @@ local function clamp(value, minimum, maximum)
     return value
 end
 
+local function normalizeKeybind(value, useDefault)
+    if value == nil then
+        return useDefault and Enum.KeyCode.RightControl or nil
+    end
+
+    if value == false then
+        return nil
+    end
+
+    if typeof(value) == "EnumItem" then
+        if value.EnumType == Enum.KeyCode and value ~= Enum.KeyCode.Unknown then
+            return value
+        end
+
+        return nil
+    end
+
+    if type(value) == "string" then
+        local keyName = value:gsub("^Enum%.KeyCode%.", "")
+        local ok, key = pcall(function()
+            return Enum.KeyCode[keyName]
+        end)
+
+        if ok and key and key ~= Enum.KeyCode.Unknown then
+            return key
+        end
+    end
+
+    return nil
+end
+
 local function lerpUDim2(startValue, endValue, alpha)
     return UDim2.new(
         startValue.X.Scale + (endValue.X.Scale - startValue.X.Scale) * alpha,
@@ -247,34 +278,139 @@ end
 function Lib.newDraggable(target, handle, isLocked)
     handle = handle or target
 
+    if not target or not handle then
+        return function() end
+    end
+
     local dragging = false
     local inputType
     local dragStart
     local startPosition
     local targetPosition
 
-    local beginConnection = handle.InputBegan:Connect(function(input)
-        if isLocked and isLocked() then
+    local beginConnection
+    local changedConnection
+    local endedConnection
+    local renderConnection
+    local targetDestroyConnection
+    local handleDestroyConnection
+
+    local cleaned = false
+    local cleanup
+
+    local function stopRender()
+        if renderConnection then
+            local connection = renderConnection
+            renderConnection = nil
+            connection:Disconnect()
+        end
+    end
+
+    local function startRender()
+        if cleaned or renderConnection then
             return
         end
 
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-            or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            inputType = input.UserInputType
-            dragStart = Vector2.new(input.Position.X, input.Position.Y)
-            startPosition = target.Position
-            targetPosition = startPosition
+        renderConnection = RunService.RenderStepped:Connect(function(deltaTime)
+            if cleaned then
+                stopRender()
+                return
+            end
+
+            if not target.Parent then
+                cleanup()
+                return
+            end
+
+            if not targetPosition then
+                stopRender()
+                return
+            end
+
+            local alpha = 1 - math.exp(-deltaTime * 24)
+            target.Position = lerpUDim2(target.Position, targetPosition, alpha)
+
+            local position = target.Position
+            local closeEnough = math.abs(position.X.Offset - targetPosition.X.Offset) < 0.5
+                and math.abs(position.Y.Offset - targetPosition.Y.Offset) < 0.5
+
+            if closeEnough then
+                target.Position = targetPosition
+                targetPosition = nil
+                stopRender()
+            end
+        end)
+    end
+
+    cleanup = function()
+        if cleaned then
+            return
         end
+
+        cleaned = true
+        dragging = false
+        inputType = nil
+        targetPosition = nil
+
+        stopRender()
+
+        if beginConnection then
+            beginConnection:Disconnect()
+            beginConnection = nil
+        end
+
+        if changedConnection then
+            changedConnection:Disconnect()
+            changedConnection = nil
+        end
+
+        if endedConnection then
+            endedConnection:Disconnect()
+            endedConnection = nil
+        end
+
+        if targetDestroyConnection then
+            targetDestroyConnection:Disconnect()
+            targetDestroyConnection = nil
+        end
+
+        if handleDestroyConnection then
+            handleDestroyConnection:Disconnect()
+            handleDestroyConnection = nil
+        end
+    end
+
+    beginConnection = handle.InputBegan:Connect(function(input)
+        if cleaned then
+            return
+        end
+
+        if type(isLocked) == "function" and isLocked() then
+            return
+        end
+
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1
+            and input.UserInputType ~= Enum.UserInputType.Touch then
+            return
+        end
+
+        stopRender()
+
+        dragging = true
+        inputType = input.UserInputType
+        dragStart = Vector2.new(input.Position.X, input.Position.Y)
+        startPosition = target.Position
+        targetPosition = nil
     end)
 
-    local changedConnection = UserInputService.InputChanged:Connect(function(input)
-        if not dragging or not target.Parent then
+    changedConnection = UserInputService.InputChanged:Connect(function(input)
+        if cleaned or not dragging or not target.Parent then
             return
         end
 
         local mouseMove = inputType == Enum.UserInputType.MouseButton1
             and input.UserInputType == Enum.UserInputType.MouseMovement
+
         local touchMove = inputType == Enum.UserInputType.Touch
             and input.UserInputType == Enum.UserInputType.Touch
 
@@ -291,40 +427,24 @@ function Lib.newDraggable(target, handle, isLocked)
             startPosition.Y.Scale,
             startPosition.Y.Offset + delta.Y
         )
+
+        startRender()
     end)
 
-    local endedConnection = UserInputService.InputEnded:Connect(function(input)
+    endedConnection = UserInputService.InputEnded:Connect(function(input)
         if dragging and input.UserInputType == inputType then
             dragging = false
             inputType = nil
         end
     end)
 
-    local renderConnection = RunService.RenderStepped:Connect(function(deltaTime)
-        if not target.Parent or not targetPosition then
-            return
-        end
+    targetDestroyConnection = target.Destroying:Connect(cleanup)
 
-        local alpha = 1 - math.exp(-deltaTime * 24)
-        target.Position = lerpUDim2(target.Position, targetPosition, alpha)
-
-        if not dragging then
-            local position = target.Position
-            if math.abs(position.X.Offset - targetPosition.X.Offset) < 0.5
-                and math.abs(position.Y.Offset - targetPosition.Y.Offset) < 0.5 then
-                target.Position = targetPosition
-                targetPosition = nil
-            end
-        end
-    end)
-
-    return function()
-        dragging = false
-        pcall(function() beginConnection:Disconnect() end)
-        pcall(function() changedConnection:Disconnect() end)
-        pcall(function() endedConnection:Disconnect() end)
-        pcall(function() renderConnection:Disconnect() end)
+    if handle ~= target then
+        handleDestroyConnection = handle.Destroying:Connect(cleanup)
     end
+
+    return cleanup
 end
 
 function Lib:CreateWindow(config)
@@ -335,6 +455,8 @@ function Lib:CreateWindow(config)
     local accent = config.Accent or Theme.Accent
     local rawSize = config.Size or UDim2.fromOffset(560, 400)
     local dragSmoothness = tonumber(config.DragSmoothness) or 24
+    local keybind = normalizeKeybind(config.Keybind, true)
+
     dragSmoothness = clamp(dragSmoothness, 1, 50)
 
     local viewport = getViewport()
@@ -605,6 +727,7 @@ function Lib:CreateWindow(config)
         Content = content,
         ToggleButton = toggleButton,
         Accent = accent,
+        Keybind = keybind,
         Tabs = {},
         ActiveTab = nil,
         Minimized = false,
@@ -639,10 +762,47 @@ function Lib:CreateWindow(config)
         return clamp(x, minX, maxX), clamp(y, minY, maxY)
     end
 
+    local function stopRenderLoop()
+        if window._renderConnection then
+            local connection = window._renderConnection
+            window._renderConnection = nil
+            connection:Disconnect()
+        end
+    end
+
+    local function startRenderLoop()
+        if closed or window._renderConnection then
+            return
+        end
+
+        window._renderConnection = RunService.RenderStepped:Connect(function(deltaTime)
+            if closed or not wrapper.Parent or not dragTargetPosition or resizing then
+                stopRenderLoop()
+                return
+            end
+
+            local targetPosition = dragTargetPosition
+            local alpha = 1 - math.exp(-deltaTime * dragSmoothness)
+            wrapper.Position = lerpUDim2(wrapper.Position, targetPosition, alpha)
+
+            local position = wrapper.Position
+            local closeEnough = math.abs(position.X.Offset - targetPosition.X.Offset) < 0.5
+                and math.abs(position.Y.Offset - targetPosition.Y.Offset) < 0.5
+
+            if closeEnough then
+                wrapper.Position = targetPosition
+                dragTargetPosition = nil
+                stopRenderLoop()
+            end
+        end)
+    end
+
     local function cleanupInputConnections()
         dragging = false
         resizing = false
         dragTargetPosition = nil
+
+        stopRenderLoop()
 
         if window._inputChangedConnection then
             window._inputChangedConnection:Disconnect()
@@ -654,9 +814,9 @@ function Lib:CreateWindow(config)
             window._inputEndedConnection = nil
         end
 
-        if window._renderConnection then
-            window._renderConnection:Disconnect()
-            window._renderConnection = nil
+        if window._keybindConnection then
+            window._keybindConnection:Disconnect()
+            window._keybindConnection = nil
         end
     end
 
@@ -698,6 +858,7 @@ function Lib:CreateWindow(config)
             dragInputType = nil
             resizeInputType = nil
             dragTargetPosition = nil
+            stopRenderLoop()
 
             if activeDropdownClose then
                 pcall(activeDropdownClose)
@@ -720,6 +881,28 @@ function Lib:CreateWindow(config)
     function window:Toggle()
         setWindowVisible(not wrapper.Visible)
     end
+
+    function window:SetKeybind(value)
+        self.Keybind = normalizeKeybind(value, false)
+        return self.Keybind
+    end
+
+    window._keybindConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if closed or gameProcessed or not window.Keybind then
+            return
+        end
+
+        if input.UserInputType ~= Enum.UserInputType.Keyboard
+            or input.KeyCode ~= window.Keybind then
+            return
+        end
+
+        if UserInputService:GetFocusedTextBox() then
+            return
+        end
+
+        window:Toggle()
+    end)
 
     local function closeWindow()
         setWindowVisible(false)
@@ -755,7 +938,8 @@ function Lib:CreateWindow(config)
             absolutePosition.Y + absoluteSize.Y / 2
         )
 
-        dragTargetPosition = wrapper.Position
+        dragTargetPosition = nil
+        stopRenderLoop()
     end
 
     local function beginResize(input)
@@ -775,6 +959,7 @@ function Lib:CreateWindow(config)
         resizeStartSize = wrapper.AbsoluteSize
         resizeStartTopLeft = wrapper.AbsolutePosition
         dragTargetPosition = nil
+        stopRenderLoop()
     end
 
     topBar.InputBegan:Connect(beginDrag)
@@ -788,6 +973,7 @@ function Lib:CreateWindow(config)
         if resizing then
             local mouseMove = resizeInputType == Enum.UserInputType.MouseButton1
                 and input.UserInputType == Enum.UserInputType.MouseMovement
+
             local touchMove = resizeInputType == Enum.UserInputType.Touch
                 and input.UserInputType == Enum.UserInputType.Touch
 
@@ -823,6 +1009,7 @@ function Lib:CreateWindow(config)
 
         local mouseMove = dragInputType == Enum.UserInputType.MouseButton1
             and input.UserInputType == Enum.UserInputType.MouseMovement
+
         local touchMove = dragInputType == Enum.UserInputType.Touch
             and input.UserInputType == Enum.UserInputType.Touch
 
@@ -838,6 +1025,7 @@ function Lib:CreateWindow(config)
         )
 
         dragTargetPosition = UDim2.fromOffset(x, y)
+        startRenderLoop()
     end)
 
     window._inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
@@ -849,25 +1037,6 @@ function Lib:CreateWindow(config)
         if dragging and input.UserInputType == dragInputType then
             dragging = false
             dragInputType = nil
-        end
-    end)
-
-    window._renderConnection = RunService.RenderStepped:Connect(function(deltaTime)
-        if closed or not wrapper.Parent or not dragTargetPosition or resizing then
-            return
-        end
-
-        local alpha = 1 - math.exp(-deltaTime * dragSmoothness)
-        wrapper.Position = lerpUDim2(wrapper.Position, dragTargetPosition, alpha)
-
-        if not dragging then
-            local position = wrapper.Position
-
-            if math.abs(position.X.Offset - dragTargetPosition.X.Offset) < 0.5
-                and math.abs(position.Y.Offset - dragTargetPosition.Y.Offset) < 0.5 then
-                wrapper.Position = dragTargetPosition
-                dragTargetPosition = nil
-            end
         end
     end)
 
@@ -884,6 +1053,7 @@ function Lib:CreateWindow(config)
 
         if state then
             resizing = false
+            resizeInputType = nil
             resizeHandle.Visible = false
             minButton.Text = "+"
         else
@@ -1389,12 +1559,10 @@ function Lib:CreateSlider(parent, text, minimum, maximum, default, callback)
         updateFromX(input.Position.X)
 
         changedConnection = UserInputService.InputChanged:Connect(function(changedInput)
-            local mouseMove =
-                dragInputType == Enum.UserInputType.MouseButton1
+            local mouseMove = dragInputType == Enum.UserInputType.MouseButton1
                 and changedInput.UserInputType == Enum.UserInputType.MouseMovement
 
-            local touchMove =
-                dragInputType == Enum.UserInputType.Touch
+            local touchMove = dragInputType == Enum.UserInputType.Touch
                 and changedInput.UserInputType == Enum.UserInputType.Touch
 
             if dragging and (mouseMove or touchMove) and row.Parent then
