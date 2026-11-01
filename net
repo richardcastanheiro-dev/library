@@ -760,10 +760,6 @@ function Lib:CreateWindow(config)
         dragInputObject = nil
         resizeInputObject = nil
 
-        if window._windowDragBeganConnection then
-            window._windowDragBeganConnection:Disconnect()
-            window._windowDragBeganConnection = nil
-        end
 
         if window._inputChangedConnection then
             window._inputChangedConnection:Disconnect()
@@ -778,6 +774,15 @@ function Lib:CreateWindow(config)
         if window._keybindConnection then
             window._keybindConnection:Disconnect()
             window._keybindConnection = nil
+        end
+                if window._windowDragBeganConnection then
+            window._windowDragBeganConnection:Disconnect()
+            window._windowDragBeganConnection = nil
+        end
+
+        if window._resizeBeganConnection then
+            window._resizeBeganConnection:Disconnect()
+            window._resizeBeganConnection = nil
         end
     end
 
@@ -939,7 +944,7 @@ function Lib:CreateWindow(config)
     window.Close = closeWindow
 
     local function beginDrag(input)
-        if closed or resizing or not window.Visible or not wrapper.Visible then
+        if closed or resizing or dragging or not window.Visible or not wrapper.Visible then
             return
         end
 
@@ -969,7 +974,7 @@ function Lib:CreateWindow(config)
     end
 
     local function beginResize(input)
-        if closed or window.Minimized or not window.Visible or not wrapper.Visible then
+        if closed or resizing or window.Minimized or not window.Visible or not wrapper.Visible then
             return
         end
 
@@ -989,7 +994,7 @@ function Lib:CreateWindow(config)
         resizeStartTopLeft = wrapper.AbsolutePosition
     end
 
-    window._windowDragBeganConnection = UserInputService.InputBegan:Connect(function(input)
+    window._windowDragBeganConnection = topBar.InputBegan:Connect(function(input)
         if closed or not window.Visible or not isPointerInput(input) then
             return
         end
@@ -998,27 +1003,25 @@ function Lib:CreateWindow(config)
             return
         end
 
+
         local point = Vector2.new(input.Position.X, input.Position.Y)
-
-        if pointInside(toggleButton, point) then
-            return
-        end
-
-        if pointInside(resizeHandle, point) then
-            beginResize(input)
-            return
-        end
-
-        if not pointInside(topBar, point) then
-            return
-        end
-
-        if pointInside(closeButton, point)
-            or pointInside(minButton, point) then
+        if pointInside(closeButton, point) or pointInside(minButton, point) then
             return
         end
 
         beginDrag(input)
+    end)
+
+    window._resizeBeganConnection = resizeHandle.InputBegan:Connect(function(input)
+        if closed or not window.Visible or not isPointerInput(input) then
+            return
+        end
+
+        if UserInputService:GetFocusedTextBox() or activeDropdownClose then
+            return
+        end
+
+        beginResize(input)
     end)
 
     window._inputChangedConnection = UserInputService.InputChanged:Connect(function(input)
