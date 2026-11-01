@@ -1294,6 +1294,119 @@ function Lib:CreateToggle(parent, text, default, callback)
 	refreshPage(page)
 	return row
 end
+function Lib:CreateKeybind(parent, text, defaultKey, callback)
+	local frame, page = prepareControl(parent, 42, "Frame")
+
+	local label = make("TextLabel", {
+		Name = "Label",
+		Position = UDim2.fromOffset(12, 0),
+		Size = UDim2.new(1, -115, 1, 0),
+		BackgroundTransparency = 1,
+		Text = tostring(text or "Keybind"),
+		Font = Enum.Font.Gotham,
+		TextSize = 14,
+		TextColor3 = Theme.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		BorderSizePixel = 0
+	}, frame)
+
+	local button = make("TextButton", {
+		Name = "Key",
+		Position = UDim2.new(1, -100, 0.5, -14),
+		Size = UDim2.fromOffset(88, 28),
+		BackgroundColor3 = Theme.SurfaceHi,
+		BorderSizePixel = 0,
+		Text = "",
+		Font = Enum.Font.GothamMedium,
+		TextSize = 12,
+		TextColor3 = Theme.AccentSoft,
+		AutoButtonColor = false
+	}, frame)
+
+	corner(button, 7)
+	stroke(button, Theme.Stroke, 0.4)
+
+	local currentKey = defaultKey or Enum.KeyCode.RightShift
+	local listening = false
+	local destroyed = false
+
+	local function updateKey(key)
+		currentKey = key
+		button.Text = key.Name
+		frame:SetAttribute("MikuKeybind", key.Name)
+	end
+
+	updateKey(currentKey)
+
+	button.MouseButton1Click:Connect(function()
+		if destroyed then
+			return
+		end
+
+		listening = true
+		button.Text = "Pressione..."
+		button.TextColor3 = Theme.Success
+	end)
+
+	local connection = UserInputService.InputBegan:Connect(function(input, processed)
+		if destroyed then
+			return
+		end
+
+		if listening then
+			if input.UserInputType ~= Enum.UserInputType.Keyboard then
+				return
+			end
+
+			listening = false
+
+			if input.KeyCode == Enum.KeyCode.Escape then
+				updateKey(currentKey)
+				return
+			end
+
+			if input.KeyCode == Enum.KeyCode.Backspace then
+				currentKey = nil
+				button.Text = "None"
+				frame:SetAttribute("MikuKeybind", "None")
+				return
+			end
+
+			updateKey(input.KeyCode)
+			return
+		end
+
+		if processed or UserInputService:GetFocusedTextBox() then
+			return
+		end
+
+		if currentKey and input.KeyCode == currentKey then
+			safeCall(callback, currentKey)
+		end
+	end)
+
+	local api = {}
+
+	function api:SetKey(key)
+		if typeof(key) == "EnumItem" and key.EnumType == Enum.KeyCode then
+			updateKey(key)
+		end
+	end
+
+	function api:GetKey()
+		return currentKey
+	end
+
+	function api:Destroy()
+		destroyed = true
+		connection:Disconnect()
+		frame:Destroy()
+	end
+
+	refreshPage(page)
+	return api
+end
 
 function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callback)
 	if type(defaultValue) == "function" and callback == nil then
