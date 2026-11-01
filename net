@@ -658,20 +658,33 @@ function Lib.newResize(target, callback)
 	local moveConnection
 	local endConnection
 
-	local handle = make("TextButton", {
-		Name = "ResizeHandle",
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -5, 1, -5),
-		Size = UDim2.fromOffset(22, 22),
-		BackgroundTransparency = 1,
-		Text = "⋰",
-		TextColor3 = Theme.TextDim,
-		TextSize = 19,
-		Font = Enum.Font.GothamBold,
-		AutoButtonColor = false,
-		BorderSizePixel = 0,
-		ZIndex = 50
-	}, target)
+	local handle = Instance.new("TextButton")
+	handle.Name = "ResizeHandle"
+	handle.Parent = target
+	handle.AnchorPoint = Vector2.new(1, 1)
+	handle.Position = UDim2.new(1, -4, 1, -4)
+	handle.Size = UDim2.fromOffset(30, 30)
+	handle.BackgroundColor3 = Theme.Bg
+	handle.BackgroundTransparency = 0.1
+	handle.BorderSizePixel = 0
+	handle.Text = "⤡"
+	handle.TextColor3 = Theme.TextDim
+	handle.TextSize = 22
+	handle.Font = Enum.Font.GothamBold
+	handle.AutoButtonColor = false
+	handle.Active = true
+	handle.Selectable = false
+	handle.ZIndex = 999
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 7)
+	corner.Parent = handle
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Theme.Accent
+	stroke.Transparency = 0.55
+	stroke.Thickness = 1
+	stroke.Parent = handle
 
 	local function stop()
 		dragging = false
@@ -689,14 +702,16 @@ function Lib.newResize(target, callback)
 
 	handle.MouseEnter:Connect(function()
 		TweenService:Create(handle, Fast, {
-			TextColor3 = Theme.Accent
+			TextColor3 = Theme.Accent,
+			BackgroundTransparency = 0
 		}):Play()
 	end)
 
 	handle.MouseLeave:Connect(function()
 		if not dragging then
 			TweenService:Create(handle, Fast, {
-				TextColor3 = Theme.TextDim
+				TextColor3 = Theme.TextDim,
+				BackgroundTransparency = 0.1
 			}):Play()
 		end
 	end)
@@ -707,12 +722,11 @@ function Lib.newResize(target, callback)
 			return
 		end
 
+		stop()
+
 		dragging = true
 		startMouse = UserInputService:GetMouseLocation()
 		startSize = target.AbsoluteSize
-
-		stop()
-		dragging = true
 
 		moveConnection = UserInputService.InputChanged:Connect(function(changed)
 			if not dragging then
@@ -728,20 +742,11 @@ function Lib.newResize(target, callback)
 			local delta = mouse - startMouse
 			local viewport = getViewport()
 
-			local maxWidth = math.max(320, viewport.X - 40)
-			local maxHeight = math.max(240, viewport.Y - 40)
+			local maxWidth = math.max(360, viewport.X - 20)
+			local maxHeight = math.max(240, viewport.Y - 20)
 
-			local width = math.clamp(
-				startSize.X + delta.X,
-				360,
-				maxWidth
-			)
-
-			local height = math.clamp(
-				startSize.Y + delta.Y,
-				240,
-				maxHeight
-			)
+			local width = math.clamp(startSize.X + delta.X, 360, maxWidth)
+			local height = math.clamp(startSize.Y + delta.Y, 240, maxHeight)
 
 			target.Size = UDim2.fromOffset(width, height)
 
@@ -758,17 +763,12 @@ function Lib.newResize(target, callback)
 		end)
 	end)
 
-	local api = {}
-
-	function api.Destroy()
-		stop()
-
-		if handle then
+	return {
+		Destroy = function()
+			stop()
 			handle:Destroy()
 		end
-	end
-
-	return api
+	}
 end
 
 function Lib:CreateWindow(config)
