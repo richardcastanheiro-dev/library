@@ -1,4 +1,3 @@
-
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
@@ -505,35 +504,6 @@ function Lib:CreateWindow(config)
     wrapper.ClipsDescendants = false
     wrapper.Parent = gui
 
-    local toggleButton = Instance.new("TextButton")
-    toggleButton.Name = "ToggleWindow"
-    toggleButton.AnchorPoint = Vector2.new(1, 1)
-    toggleButton.Position = UDim2.new(1, -16, 1, -16)
-    toggleButton.Size = UDim2.fromOffset(92, 36)
-    toggleButton.BackgroundColor3 = accent
-    toggleButton.BorderSizePixel = 0
-    toggleButton.AutoButtonColor = false
-    toggleButton.Text = "Fechar"
-    toggleButton.Font = Theme.FontBold
-    toggleButton.TextSize = 13
-    toggleButton.TextColor3 = Theme.Text
-    toggleButton.ZIndex = 100
-    applyCorner(toggleButton)
-    applyStroke(toggleButton, accent, 1, 0.15)
-    toggleButton.Parent = gui
-
-    toggleButton.MouseEnter:Connect(function()
-        playTween(toggleButton, Ease.Fast, {
-            BackgroundColor3 = Theme.AccentSoft,
-        })
-    end)
-
-    toggleButton.MouseLeave:Connect(function()
-        playTween(toggleButton, Ease.Fast, {
-            BackgroundColor3 = accent,
-        })
-    end)
-
     local shadow = Instance.new("Frame")
     shadow.Name = "Shadow"
     shadow.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -711,35 +681,35 @@ function Lib:CreateWindow(config)
     content.Parent = root
 
     local resizeHandle = Instance.new("TextButton")
-resizeHandle.Name = "ResizeIcon"
-resizeHandle.AnchorPoint = Vector2.new(1, 1)
-resizeHandle.Position = UDim2.new(1, -5, 1, -5)
-resizeHandle.Size = UDim2.fromOffset(24, 24)
-resizeHandle.BackgroundTransparency = 1
-resizeHandle.BorderSizePixel = 0
-resizeHandle.AutoButtonColor = false
-resizeHandle.Active = true
-resizeHandle.Selectable = false
-resizeHandle.Text = "⤢"
-resizeHandle.Font = Enum.Font.GothamBold
-resizeHandle.TextSize = 21
-resizeHandle.TextColor3 = Theme.TextDim
-resizeHandle.ZIndex = 20
-resizeHandle.Parent = root
+    resizeHandle.Name = "ResizeIcon"
+    resizeHandle.AnchorPoint = Vector2.new(1, 1)
+    resizeHandle.Position = UDim2.new(1, -5, 1, -5)
+    resizeHandle.Size = UDim2.fromOffset(24, 24)
+    resizeHandle.BackgroundTransparency = 1
+    resizeHandle.BorderSizePixel = 0
+    resizeHandle.AutoButtonColor = false
+    resizeHandle.Active = true
+    resizeHandle.Selectable = false
+    resizeHandle.Text = "⤢"
+    resizeHandle.Font = Enum.Font.GothamBold
+    resizeHandle.TextSize = 21
+    resizeHandle.TextColor3 = Theme.TextDim
+    resizeHandle.ZIndex = 20
+    resizeHandle.Parent = root
 
-resizeHandle.MouseEnter:Connect(function()
-    playTween(resizeHandle, Ease.Fast, {
-        TextColor3 = accent,
-        TextSize = 23,
-    })
-end)
+    resizeHandle.MouseEnter:Connect(function()
+        playTween(resizeHandle, Ease.Fast, {
+            TextColor3 = accent,
+            TextSize = 23,
+        })
+    end)
 
-resizeHandle.MouseLeave:Connect(function()
-    playTween(resizeHandle, Ease.Fast, {
-        TextColor3 = Theme.TextDim,
-        TextSize = 21,
-    })
-end)
+    resizeHandle.MouseLeave:Connect(function()
+        playTween(resizeHandle, Ease.Fast, {
+            TextColor3 = Theme.TextDim,
+            TextSize = 21,
+        })
+    end)
 
     local window = {
         Gui = gui,
@@ -747,7 +717,6 @@ end)
         Root = root,
         Sidebar = sidebar,
         Content = content,
-        ToggleButton = toggleButton,
         Accent = accent,
         Keybind = keybind,
         Tabs = {},
@@ -771,10 +740,9 @@ end)
     local resizeStart
     local resizeStartSize
     local resizeStartTopLeft
-    local resizeStartPosition
-local visibilityTween
-local visibilityConnection
-local visibilityToken = 0
+    local visibilityTween
+    local visibilityConnection
+    local visibilityToken = 0
 
     local function clampWindowCenter(x, y)
         local view = getViewport()
@@ -790,27 +758,36 @@ local visibilityToken = 0
         return clamp(x, minX, maxX), clamp(y, minY, maxY)
     end
 
+    local function getDisplayedSize()
+        if window.Minimized then
+            return UDim2.fromOffset(baseSize.X.Offset, 55)
+        end
+
+        return baseSize
+    end
+
     local function finalizeVisibilityTween()
-        if not visibilityTween then
-            return
+        visibilityToken += 1
+
+        if visibilityConnection then
+            visibilityConnection:Disconnect()
+            visibilityConnection = nil
         end
 
         local tween = visibilityTween
         visibilityTween = nil
-        pcall(function()
-            tween:Cancel()
-        end)
+
+        if tween then
+            pcall(function()
+                tween:Cancel()
+            end)
+        end
 
         wrapper.Rotation = 0
 
         if window.Visible then
             wrapper.Visible = true
-
-            if window.Minimized then
-                wrapper.Size = UDim2.fromOffset(baseSize.X.Offset, 55)
-            else
-                wrapper.Size = baseSize
-            end
+            wrapper.Size = getDisplayedSize()
         else
             wrapper.Visible = false
             wrapper.Size = UDim2.fromOffset(0, 0)
@@ -861,10 +838,17 @@ local visibilityToken = 0
         closed = true
         window.Closed = true
         window.Visible = false
-        visibilityToken = visibilityToken + 1
+        visibilityToken += 1
+
+        if visibilityConnection then
+            visibilityConnection:Disconnect()
+            visibilityConnection = nil
+        end
 
         if visibilityTween then
-            visibilityTween:Cancel()
+            pcall(function()
+                visibilityTween:Cancel()
+            end)
             visibilityTween = nil
         end
 
@@ -883,74 +867,106 @@ local visibilityToken = 0
     window.Destroy = destroyWindow
     table.insert(trackedWindows, window)
 
-local function setWindowVisible(state)
-    state = state == true
-
-    if window.Visible == state and not visibilityTween then
-        return
-    end
-
-    visibilityToken += 1
-    local token = visibilityToken
-
-    if visibilityConnection then
-        visibilityConnection:Disconnect()
-        visibilityConnection = nil
-    end
-
-    if visibilityTween then
-        visibilityTween:Cancel()
-        visibilityTween = nil
-    end
-
-    window.Visible = state
-    wrapper.Visible = true
-
-    local targetSize = state and baseSize or UDim2.fromOffset(0, 0)
-    local targetRotation = state and 0 or -8
-
-    if state then
-        wrapper.Size = UDim2.fromOffset(0, 0)
-        wrapper.Rotation = -8
-    end
-
-    local tween = TweenService:Create(
-        wrapper,
-        TweenInfo.new(
-            0.28,
-            Enum.EasingStyle.Quint,
-            Enum.EasingDirection.Out
-        ),
-        {
-            Size = targetSize,
-            Rotation = targetRotation
-        }
-    )
-
-    visibilityTween = tween
-
-    visibilityConnection = tween.Completed:Connect(function()
-        if token ~= visibilityToken then
+    local function setWindowVisible(state)
+        if closed then
             return
         end
 
-        visibilityTween = nil
+        state = state == true
+
+        if window.Visible == state then
+            return
+        end
+
+        if not state then
+            if activeDropdownClose then
+                pcall(activeDropdownClose)
+            end
+
+            dragging = false
+            pendingFirstMove = false
+            resizing = false
+            dragInputType = nil
+            resizeInputType = nil
+            dragInputObject = nil
+            resizeInputObject = nil
+        end
+
+        visibilityToken += 1
+        local token = visibilityToken
 
         if visibilityConnection then
             visibilityConnection:Disconnect()
             visibilityConnection = nil
         end
 
-        if not state then
-            wrapper.Visible = false
-        else
-            wrapper.Size = baseSize
-            wrapper.Rotation = 0
-        end
-    end)
+        local oldTween = visibilityTween
+        visibilityTween = nil
 
-    tween:Play()
-end
+        if oldTween then
+            pcall(function()
+                oldTween:Cancel()
+            end)
+        end
+
+        local wasWrapperVisible = wrapper.Visible
+
+        window.Visible = state
+        wrapper.Visible = true
+
+        local targetSize
+
+        if state then
+            targetSize = getDisplayedSize()
+
+            if not wasWrapperVisible then
+                wrapper.Size = UDim2.fromOffset(0, 0)
+                wrapper.Rotation = -8
+            end
+        else
+            targetSize = UDim2.fromOffset(0, 0)
+        end
+
+        local tween = TweenService:Create(
+            wrapper,
+            TweenInfo.new(
+                0.28,
+                Enum.EasingStyle.Quint,
+                Enum.EasingDirection.Out
+            ),
+            {
+                Size = targetSize,
+                Rotation = state and 0 or -8,
+            }
+        )
+
+        visibilityTween = tween
+
+        visibilityConnection = tween.Completed:Connect(function()
+            if token ~= visibilityToken or visibilityTween ~= tween then
+                return
+            end
+
+            visibilityTween = nil
+
+            if visibilityConnection then
+                visibilityConnection:Disconnect()
+                visibilityConnection = nil
+            end
+
+            if state then
+                wrapper.Visible = true
+                wrapper.Size = getDisplayedSize()
+                wrapper.Rotation = 0
+            else
+                wrapper.Visible = false
+                wrapper.Size = UDim2.fromOffset(0, 0)
+                wrapper.Rotation = 0
+            end
+        end)
+
+        tween:Play()
+    end
 
     function window:SetVisible(state)
         setWindowVisible(state)
@@ -1032,29 +1048,33 @@ end
         startCenter = Vector2.new(pos.X.Offset, pos.Y.Offset)
     end
 
-local function beginResize(input)
-    if closed or resizing or window.Minimized or not window.Visible or not wrapper.Visible then
-        return
+    local function beginResize(input)
+        if closed
+            or resizing
+            or window.Minimized
+            or not window.Visible
+            or not wrapper.Visible then
+            return
+        end
+
+        if not isPointerInput(input) then
+            return
+        end
+
+        finalizeVisibilityTween()
+
+        dragging = false
+        pendingFirstMove = false
+        dragInputType = nil
+        dragInputObject = nil
+
+        resizing = true
+        resizeInputType = input.UserInputType
+        resizeInputObject = input
+        resizeStart = Vector2.new(input.Position.X, input.Position.Y)
+        resizeStartSize = wrapper.AbsoluteSize
+        resizeStartTopLeft = wrapper.AbsolutePosition
     end
-
-    finalizeVisibilityTween()
-
-    if not isPointerInput(input) then
-        return
-    end
-
-    dragging = false
-    pendingFirstMove = false
-    dragInputType = nil
-    dragInputObject = nil
-
-    resizing = true
-    resizeInputType = input.UserInputType
-    resizeInputObject = input
-    resizeStart = Vector2.new(input.Position.X, input.Position.Y)
-    resizeStartSize = wrapper.AbsoluteSize
-    resizeStartTopLeft = wrapper.AbsolutePosition
-end
 
     window._windowDragBeganConnection = topBar.InputBegan:Connect(function(input)
         if closed or not window.Visible or not isPointerInput(input) then
@@ -1086,83 +1106,120 @@ end
     end)
 
     window._inputChangedConnection = UserInputService.InputChanged:Connect(function(input)
-    if closed or not wrapper.Parent or not window.Visible then
-        return
-    end
+        if closed or not wrapper.Parent or not window.Visible then
+            return
+        end
 
-    if resizing then
-        if not matchesPointerMove(resizeInputType, resizeInputObject, input) then
+        if resizing then
+            if not matchesPointerMove(resizeInputType, resizeInputObject, input) then
+                return
+            end
+
+            local pointer = Vector2.new(input.Position.X, input.Position.Y)
+            local delta = pointer - resizeStart
+            local view = getViewport()
+
+            local availableWidth = math.max(
+                160,
+                math.min(view.X - 16, view.X - resizeStartTopLeft.X - 8)
+            )
+
+            local availableHeight = math.max(
+                140,
+                math.min(view.Y - 16, view.Y - resizeStartTopLeft.Y - 8)
+            )
+
+            local minW = math.min(380, availableWidth)
+            local minH = math.min(280, availableHeight)
+
+            local newWidth = clamp(
+                resizeStartSize.X + delta.X,
+                minW,
+                availableWidth
+            )
+
+            local newHeight = clamp(
+                resizeStartSize.Y + delta.Y,
+                minH,
+                availableHeight
+            )
+
+            wrapper.Size = UDim2.fromOffset(newWidth, newHeight)
+            wrapper.Position = UDim2.fromOffset(
+                resizeStartTopLeft.X + newWidth / 2,
+                resizeStartTopLeft.Y + newHeight / 2
+            )
+
+            baseSize = UDim2.fromOffset(newWidth, newHeight)
+            return
+        end
+
+        if not dragging then
+            return
+        end
+
+        if not matchesPointerMove(dragInputType, dragInputObject, input) then
             return
         end
 
         local pointer = Vector2.new(input.Position.X, input.Position.Y)
-        local delta = pointer - resizeStart
-        local view = getViewport()
 
-        local availableWidth = math.max(160, view.X - resizeStartTopLeft.X - 8)
-        local availableHeight = math.max(140, view.Y - resizeStartTopLeft.Y - 8)
+        if pendingFirstMove then
+            pendingFirstMove = false
 
-        local minW = math.min(380, availableWidth)
-        local minH = math.min(280, availableHeight)
+            if (pointer - dragStart).Magnitude > 150 then
+                dragStart = pointer
 
-        local newWidth = clamp(
-            resizeStartSize.X + delta.X,
-            minW,
-            availableWidth
-        )
-
-        local newHeight = clamp(
-            resizeStartSize.Y + delta.Y,
-            minH,
-            availableHeight
-        )
-
-        wrapper.Size = UDim2.fromOffset(newWidth, newHeight)
-        wrapper.Position = UDim2.fromOffset(
-            resizeStartTopLeft.X + newWidth / 2,
-            resizeStartTopLeft.Y + newHeight / 2
-        )
-
-        baseSize = UDim2.fromOffset(newWidth, newHeight)
-        return
-    end
-
-    if not dragging then
-        return
-    end
-
-    if not matchesPointerMove(dragInputType, dragInputObject, input) then
-        return
-    end
-
-    local pointer = Vector2.new(input.Position.X, input.Position.Y)
-
-    if pendingFirstMove then
-        pendingFirstMove = false
-
-        if (pointer - dragStart).Magnitude > 150 then
-            dragStart = pointer
-
-            local pos = wrapper.Position
-            startCenter = Vector2.new(pos.X.Offset, pos.Y.Offset)
-            return
+                local pos = wrapper.Position
+                startCenter = Vector2.new(pos.X.Offset, pos.Y.Offset)
+                return
+            end
         end
+
+        local delta = pointer - dragStart
+        local x, y = clampWindowCenter(
+            startCenter.X + delta.X,
+            startCenter.Y + delta.Y
+        )
+
+        wrapper.Position = UDim2.fromOffset(x, y)
+    end)
+
+    local function clampPageScrollPositions()
+        task.spawn(function()
+            RunService.RenderStepped:Wait()
+            RunService.RenderStepped:Wait()
+
+            if window._destroyed then
+                return
+            end
+
+            for _, tab in ipairs(window.Tabs) do
+                local page = tab.Page
+
+                if page and page.Parent then
+                    local maxY = math.max(
+                        0,
+                        page.CanvasSize.Y.Offset - page.AbsoluteSize.Y
+                    )
+
+                    page.CanvasPosition = Vector2.new(
+                        0,
+                        clamp(page.CanvasPosition.Y, 0, maxY)
+                    )
+                end
+            end
+        end)
     end
-
-    local delta = pointer - dragStart
-    local x, y = clampWindowCenter(
-        startCenter.X + delta.X,
-        startCenter.Y + delta.Y
-    )
-
-    wrapper.Position = UDim2.fromOffset(x, y)
-end)
 
     window._inputEndedConnection = UserInputService.InputEnded:Connect(function(input)
         if resizing and matchesPointerEnd(resizeInputType, resizeInputObject, input) then
             resizing = false
             resizeInputType = nil
             resizeInputObject = nil
+            resizeStart = nil
+            resizeStartSize = nil
+            resizeStartTopLeft = nil
 
             if wrapper.Parent then
                 baseSize = UDim2.fromOffset(
@@ -1170,6 +1227,8 @@ end)
                     wrapper.AbsoluteSize.Y
                 )
             end
+
+            clampPageScrollPositions()
         end
 
         if dragging and matchesPointerEnd(dragInputType, dragInputObject, input) then
@@ -1189,6 +1248,10 @@ end)
 
         if self.Minimized == state then
             return
+        end
+
+        if visibilityTween then
+            finalizeVisibilityTween()
         end
 
         dragging = false
@@ -1229,6 +1292,10 @@ end)
             return
         end
 
+        if visibilityTween then
+            finalizeVisibilityTween()
+        end
+
         local view = getViewport()
         local minW = math.min(380, math.max(160, view.X - 24))
         local minH = math.min(280, math.max(140, view.Y - 24))
@@ -1252,10 +1319,6 @@ end)
     end)
 
     closeButton.Activated:Connect(closeWindow)
-
-    toggleButton.Activated:Connect(function()
-        window:Toggle()
-    end)
 
     function window:SelectTab(target)
         if closed or not target or self.ActiveTab == target then
@@ -1296,12 +1359,8 @@ end)
         })
 
         target.AccentBar.BackgroundTransparency = 0
-        target.Page.Position = UDim2.new(0, 8, 0, 0)
+        target.Page.Position = UDim2.new(0, 0, 0, 0)
         target.Page.Visible = true
-
-        playTween(target.Page, Ease.Fast, {
-            Position = UDim2.new(0, 0, 0, 0),
-        })
     end
 
     function window:CreateTab(name)
@@ -1356,13 +1415,39 @@ end)
         page.ScrollBarThickness = 3
         page.ScrollBarImageColor3 = accent
         page.CanvasSize = UDim2.new(0, 0, 0, 0)
-        page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        page.AutomaticCanvasSize = Enum.AutomaticSize.None
         page.ScrollingDirection = Enum.ScrollingDirection.Y
         page.Visible = false
         page.ZIndex = 3
-        applyPadding(page, 0, 6, 0, 0)
-        applyList(page, 10, Enum.HorizontalAlignment.Left)
+
+        local pagePadding = applyPadding(page, 0, 6, 0, 0)
+        local pageLayout = applyList(page, 10, Enum.HorizontalAlignment.Left)
         page.Parent = content
+
+        local function updatePageCanvas()
+            if not page.Parent then
+                return
+            end
+
+            local canvasHeight = pageLayout.AbsoluteContentSize.Y
+                + pagePadding.PaddingTop.Offset
+                + pagePadding.PaddingBottom.Offset
+
+            page.CanvasSize = UDim2.fromOffset(0, canvasHeight)
+
+            local maxY = math.max(0, canvasHeight - page.AbsoluteSize.Y)
+            if page.CanvasPosition.Y > maxY then
+                page.CanvasPosition = Vector2.new(0, maxY)
+            end
+        end
+
+        pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updatePageCanvas)
+        page:GetPropertyChangedSignal("AbsoluteSize"):Connect(updatePageCanvas)
+        page.ChildAdded:Connect(function()
+            task.defer(updatePageCanvas)
+        end)
+
+        task.defer(updatePageCanvas)
 
         local tab = {
             Button = tabButton,
