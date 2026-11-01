@@ -61,6 +61,17 @@ Lib.Ease = Ease
 
 local activeDropdownClose
 local notificationEntries = {}
+local trackedGuis = {}
+local trackedWindows = {}
+
+local function removeTracked(list, target)
+    for index = #list, 1, -1 do
+        if list[index] == target then
+            table.remove(list, index)
+            return
+        end
+    end
+end
 
 local function getViewport()
     local camera = workspace.CurrentCamera
@@ -94,6 +105,12 @@ local function attachGui(gui)
     if not ok or gui.Parent == nil then
         gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
     end
+
+    table.insert(trackedGuis, gui)
+
+    gui.Destroying:Connect(function()
+        removeTracked(trackedGuis, gui)
+    end)
 end
 
 local function applyCorner(instance, radius)
@@ -353,7 +370,6 @@ function Lib:CreateWindow(config)
     wrapper.ClipsDescendants = false
     wrapper.Parent = gui
 
-    -- Botão flutuante para esconder e mostrar a janela
     local toggleButton = Instance.new("TextButton")
     toggleButton.Name = "ToggleWindow"
     toggleButton.AnchorPoint = Vector2.new(1, 1)
@@ -654,6 +670,7 @@ function Lib:CreateWindow(config)
         window.Closed = true
         window.Visible = false
 
+        removeTracked(trackedWindows, window)
         cleanupInputConnections()
 
         if Shared.MikuLibInstance == window then
@@ -666,6 +683,7 @@ function Lib:CreateWindow(config)
     end
 
     window.Destroy = destroyWindow
+    table.insert(trackedWindows, window)
 
     local function setWindowVisible(state)
         if closed then
@@ -1907,7 +1925,6 @@ function Lib:Notify(config)
         end)
     end)
 
-
     return gui
 end
 
@@ -2046,5 +2063,39 @@ function Lib:CreateWatermark(config)
 
     return watermark
 end
+
+function Lib:DestroyAll()
+    if activeDropdownClose then
+        local closeDropdown = activeDropdownClose
+        pcall(closeDropdown)
+    end
+
+    for _, entry in ipairs(table.clone(notificationEntries)) do
+        entry.closed = true
+    end
+    table.clear(notificationEntries)
+
+    for _, window in ipairs(table.clone(trackedWindows)) do
+        if window and type(window.Destroy) == "function" then
+            pcall(function()
+                window:Destroy()
+            end)
+        end
+    end
+
+    for _, gui in ipairs(table.clone(trackedGuis)) do
+        if gui then
+            pcall(function()
+                gui:Destroy()
+            end)
+        end
+    end
+
+    table.clear(trackedWindows)
+    table.clear(trackedGuis)
+end
+
+Lib.CloseAll = Lib.DestroyAll
+Lib.Destroy = Lib.DestroyAll
 
 return Lib
