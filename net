@@ -651,6 +651,126 @@ function Window:Destroy()
 	end
 end
 
+function Lib.newResize(target, callback)
+	local dragging = false
+	local startMouse
+	local startSize
+	local moveConnection
+	local endConnection
+
+	local handle = make("TextButton", {
+		Name = "ResizeHandle",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -5, 1, -5),
+		Size = UDim2.fromOffset(22, 22),
+		BackgroundTransparency = 1,
+		Text = "⋰",
+		TextColor3 = Theme.TextDim,
+		TextSize = 19,
+		Font = Enum.Font.GothamBold,
+		AutoButtonColor = false,
+		BorderSizePixel = 0,
+		ZIndex = 50
+	}, target)
+
+	local function stop()
+		dragging = false
+
+		if moveConnection then
+			moveConnection:Disconnect()
+			moveConnection = nil
+		end
+
+		if endConnection then
+			endConnection:Disconnect()
+			endConnection = nil
+		end
+	end
+
+	handle.MouseEnter:Connect(function()
+		TweenService:Create(handle, Fast, {
+			TextColor3 = Theme.Accent
+		}):Play()
+	end)
+
+	handle.MouseLeave:Connect(function()
+		if not dragging then
+			TweenService:Create(handle, Fast, {
+				TextColor3 = Theme.TextDim
+			}):Play()
+		end
+	end)
+
+	handle.InputBegan:Connect(function(input)
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1
+			and input.UserInputType ~= Enum.UserInputType.Touch then
+			return
+		end
+
+		dragging = true
+		startMouse = UserInputService:GetMouseLocation()
+		startSize = target.AbsoluteSize
+
+		stop()
+		dragging = true
+
+		moveConnection = UserInputService.InputChanged:Connect(function(changed)
+			if not dragging then
+				return
+			end
+
+			if changed.UserInputType ~= Enum.UserInputType.MouseMovement
+				and changed.UserInputType ~= Enum.UserInputType.Touch then
+				return
+			end
+
+			local mouse = UserInputService:GetMouseLocation()
+			local delta = mouse - startMouse
+			local viewport = getViewport()
+
+			local maxWidth = math.max(320, viewport.X - 40)
+			local maxHeight = math.max(240, viewport.Y - 40)
+
+			local width = math.clamp(
+				startSize.X + delta.X,
+				360,
+				maxWidth
+			)
+
+			local height = math.clamp(
+				startSize.Y + delta.Y,
+				240,
+				maxHeight
+			)
+
+			target.Size = UDim2.fromOffset(width, height)
+
+			if callback then
+				callback(width, height)
+			end
+		end)
+
+		endConnection = UserInputService.InputEnded:Connect(function(changed)
+			if changed.UserInputType == Enum.UserInputType.MouseButton1
+				or changed.UserInputType == Enum.UserInputType.Touch then
+				stop()
+			end
+		end)
+	end)
+
+	local api = {}
+
+	function api.Destroy()
+		stop()
+
+		if handle then
+			handle:Destroy()
+		end
+	end
+
+	return api
+end
+
 function Lib:CreateWindow(config)
 	config = type(config) == "table" and config or {}
 	local sharedTable = getShared(true)
@@ -667,6 +787,7 @@ function Lib:CreateWindow(config)
 	self._tabs = {}
 	self._visible = false
 	self._minimized = false
+    self._wrapper = wrapper
 	self._animToken = 0
 	self._destroyed = false
 	local viewport = getViewport()
@@ -945,6 +1066,15 @@ function Lib:CreateWindow(config)
 		BorderSizePixel = 0,
 		ClipsDescendants = true
 	}, root)
+    self._resizeApi = Lib.newResize(wrapper, function(width, height)
+	self._baseSize = Vector2.new(width, height)
+
+	for _, entry in ipairs(self._tabs) do
+		refreshPage(entry.Page)
+	end
+
+	self:ClampPosition()
+end)
 	self._content = content
 	self:SetTitle(config.Title or "MikuLib", config.Subtitle or ("v" .. Lib.Version))
 	self:SetProfile({
@@ -987,6 +1117,7 @@ function Lib:CreateWindow(config)
 	end
 	return self
 end
+
 
 function Lib:CreateSection(parent, text)
 	local section, page = prepareControl(parent, 26, "Frame")
@@ -1664,6 +1795,11 @@ function Lib:CreateWatermark(text)
 	return api
 end
 
+if self._resizeApi then
+	self._resizeApi.Destroy()
+	self._resizeApi = nil
+end
+
 function Lib:DestroyAll()
 	local windows = self.Windows
 	self.Windows = {}
@@ -1672,6 +1808,7 @@ function Lib:DestroyAll()
 		if window and type(window.Destroy) == "function" then
 			pcall(function()
 				window:Destroy()
+                
 			end)
 		end
 	end
