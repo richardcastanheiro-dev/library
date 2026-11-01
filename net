@@ -453,7 +453,7 @@ function Lib:CreateWindow(config)
     wrapper.AnchorPoint = Vector2.new(0.5, 0.5)
     wrapper.Position = UDim2.fromOffset(viewport.X / 2, viewport.Y / 2)
     wrapper.Size = baseSize
-    wrapper.Backgroundy = 1
+    wrapper.BackgroundTransparency = 0
     wrapper.BorderSizePixel = 0
     wrapper.ClipsDescendants = false
     wrapper.Parent = gui
@@ -604,9 +604,9 @@ root.BackgroundTransparency = 0
         })
 
         playTween(closeStroke, Ease.Fast, {
-            Color = Theme.Stroke,
-            y = 0.4,
-        })
+    Color = Theme.Danger,
+    Transparency = 0.1,
+})
     end)
 
     minButton.MouseEnter:Connect(function()
