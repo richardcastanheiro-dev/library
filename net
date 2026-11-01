@@ -769,6 +769,7 @@ function Lib:CreateWindow(config)
     local resizeStart
     local resizeStartSize
     local resizeStartTopLeft
+    local resizeStartPosition
     local visibilityTween
     local visibilityToken = 0
 
@@ -1072,11 +1073,10 @@ function Lib:CreateWindow(config)
         resizing = true
         resizeInputType = input.UserInputType
         resizeInputObject = input
-
         resizeStart = Vector2.new(input.Position.X, input.Position.Y)
-
         resizeStartSize = wrapper.AbsoluteSize
         resizeStartTopLeft = wrapper.AbsolutePosition
+        resizeStartPosition = wrapper.Position
     end
 
     window._windowDragBeganConnection = topBar.InputBegan:Connect(function(input)
@@ -1123,7 +1123,6 @@ function Lib:CreateWindow(config)
             end
 
             local pointer = Vector2.new(input.Position.X, input.Position.Y)
-
             local delta = pointer - resizeStart
             local view = getViewport()
 
@@ -1137,9 +1136,11 @@ function Lib:CreateWindow(config)
 
             wrapper.Size = UDim2.fromOffset(newWidth, newHeight)
             baseSize = UDim2.fromOffset(newWidth, newHeight)
-            wrapper.Position = UDim2.fromOffset(
-                resizeStartTopLeft.X + newWidth / 2,
-                resizeStartTopLeft.Y + newHeight / 2
+            wrapper.Position = UDim2.new(
+                resizeStartPosition.X.Scale,
+                resizeStartPosition.X.Offset + (newWidth - resizeStartSize.X) / 2,
+                resizeStartPosition.Y.Scale,
+                resizeStartPosition.Y.Offset + (newHeight - resizeStartSize.Y) / 2
             )
 
             return
