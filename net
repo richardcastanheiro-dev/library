@@ -1114,37 +1114,33 @@ function Lib:CreateWindow(config)
         end
 
         if resizing then
-            if not matchesPointerMove(
-                resizeInputType,
-                resizeInputObject,
-                input
-            ) then
-                return
-            end
+    if not matchesPointerMove(resizeInputType, resizeInputObject, input) then
+        return
+    end
 
-            local pointer = Vector2.new(input.Position.X, input.Position.Y)
-            local delta = pointer - resizeStart
-            local view = getViewport()
+    local pointer = Vector2.new(input.Position.X, input.Position.Y)
+    local delta = pointer - resizeStart
+    local left = resizeStartTopLeft.X
+    local top = resizeStartTopLeft.Y
+    local view = getViewport()
 
-            local minW = math.min(380, math.max(160, view.X - 24))
-            local minH = math.min(280, math.max(140, view.Y - 24))
-            local maxW = math.max(minW, view.X - resizeStartTopLeft.X - 8)
-            local maxH = math.max(minH, view.Y - resizeStartTopLeft.Y - 8)
+    local minW = math.min(380, math.max(160, view.X - 24))
+    local minH = math.min(280, math.max(140, view.Y - 24))
+    local maxW = math.max(minW, view.X - left - 8)
+    local maxH = math.max(minH, view.Y - top - 8)
 
-            local newWidth = clamp(resizeStartSize.X + delta.X, minW, maxW)
-            local newHeight = clamp(resizeStartSize.Y + delta.Y, minH, maxH)
+    local newWidth = clamp(resizeStartSize.X + delta.X, minW, maxW)
+    local newHeight = clamp(resizeStartSize.Y + delta.Y, minH, maxH)
 
-            wrapper.Size = UDim2.fromOffset(newWidth, newHeight)
-            baseSize = UDim2.fromOffset(newWidth, newHeight)
-            wrapper.Position = UDim2.new(
-                resizeStartPosition.X.Scale,
-                resizeStartPosition.X.Offset + (newWidth - resizeStartSize.X) / 2,
-                resizeStartPosition.Y.Scale,
-                resizeStartPosition.Y.Offset + (newHeight - resizeStartSize.Y) / 2
-            )
+    wrapper.Size = UDim2.fromOffset(newWidth, newHeight)
+    wrapper.Position = UDim2.fromOffset(
+        left + newWidth / 2,
+        top + newHeight / 2
+    )
 
-            return
-        end
+    baseSize = UDim2.fromOffset(newWidth, newHeight)
+    return
+end
 
         if not dragging then
             return
