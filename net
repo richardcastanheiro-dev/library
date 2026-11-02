@@ -432,124 +432,338 @@ function Window:Destroy()
 	if self._screenGui then self._screenGui:Destroy(); self._screenGui = nil end
 end
 
+
 function Lib:CreateWindow(config)
-	config = type(config) == "table" and config or {}
-	local sh = getShared(true)
-	if sh then
-		local old = sh.MikuLibInstance
-		if old and not sh.MikuLibKeepOldInstance and type(old.Destroy) == "function" then pcall(function() old:Destroy() end) end
-	end
-	local self = setmetatable({}, Window)
-	self._tweens = {}; self._tabs = {}; self._visible = false; self._minimized = false; self._destroyed = false
-	local viewport = getViewport()
-	local w, h = 1000, 580
-	if typeof(config.Size) == "UDim2" then
-		w = config.Size.X.Scale > 0 and viewport.X * config.Size.X.Scale or (config.Size.X.Offset > 0 and config.Size.X.Offset or w)
-		h = config.Size.Y.Scale > 0 and viewport.Y * config.Size.Y.Scale or (config.Size.Y.Offset > 0 and config.Size.Y.Offset or h)
-	elseif typeof(config.Size) == "Vector2" then w, h = config.Size.X, config.Size.Y end
-	if tonumber(config.Width) then w = tonumber(config.Width) end
-	if tonumber(config.Height) then h = tonumber(config.Height) end
-	w = math.clamp(w, math.min(360, viewport.X - 40), viewport.X - 40)
-	h = math.clamp(h, math.min(240, viewport.Y - 40), viewport.Y - 40)
-	self._baseSize = Vector2.new(w, h)
-	local gui = make("ScreenGui", { Name = "MikuLib", DisplayOrder = config.DisplayOrder or 9999,
-		IgnoreGuiInset = true, ResetOnSpawn = false, ZIndexBehavior = Enum.ZIndexBehavior.Sibling }, PlayerGui)
-	self._screenGui = gui
-	local wrapper = make("Frame", {
-		Name = "Window", Position = UDim2.fromOffset(math.max(0, (viewport.X - w) / 2), math.max(0, (viewport.Y - h) / 2)),
-		Size = UDim2.fromOffset(w, h), BackgroundTransparency = 1, BorderSizePixel = 0,
-		ClipsDescendants = false, Active = false, Visible = false,
-	}, gui)
-	self._wrapper = wrapper
-	local root = make("CanvasGroup", { Name = "Root", Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Theme.Bg, BorderSizePixel = 0, ClipsDescendants = true }, wrapper)
-	corner(root, 14); stroke(root, Theme.Stroke, 0.25)
-	self._root = root
-	self._rootScale = make("UIScale", { Name = "Scale", Scale = 1 }, root)
+    config = type(config) == "table" and config or {}
 
-	local topBar = make("Frame", { Name = "TopBar", Size = UDim2.new(1, 0, 0, 55),
-		BackgroundColor3 = Theme.Surface, BorderSizePixel = 0 }, root)
-	make("Frame", { Position = UDim2.new(0, 0, 1, -1), Size = UDim2.new(1, 0, 0, 1),
-		BackgroundColor3 = Theme.Stroke, BackgroundTransparency = 0.3, BorderSizePixel = 0 }, topBar)
-	self._titleLabel = make("TextLabel", {
-		Name = "Title", Position = UDim2.fromOffset(18, 8), Size = UDim2.new(1, -120, 0, 20),
-		BackgroundTransparency = 1, Text = "MikuLib", Font = Enum.Font.GothamBold, TextSize = 15,
-		TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-	}, topBar)
-	self._subtitleLabel = make("TextLabel", {
-		Name = "Subtitle", Position = UDim2.fromOffset(18, 29), Size = UDim2.new(1, -120, 0, 14),
-		BackgroundTransparency = 1, Text = "v" .. Lib.Version, Font = Enum.Font.GothamMedium,
-		TextSize = 11, TextColor3 = Theme.TextDim, TextXAlignment = Enum.TextXAlignment.Left,
-	}, topBar)
+    local sh = getShared(true)
 
-	local minB = make("TextButton", { Name = "MinButton", Position = UDim2.new(1, -72, 0.5, -14),
-		Size = UDim2.fromOffset(28, 28), BackgroundColor3 = Theme.Accent, BackgroundTransparency = 1,
-		Text = "−", TextColor3 = Theme.TextDim, Font = Enum.Font.GothamBold, TextSize = 18,
-		AutoButtonColor = false, ZIndex = 6 }, topBar)
-	corner(minB, 7); minB.MouseButton1Click:Connect(function() self:Minimize() end)
+    if sh then
+        local old = sh.MikuLibInstance
+        if old and not sh.MikuLibKeepOldInstance and type(old.Destroy) == "function" then
+            pcall(function()
+                old:Destroy()
+            end)
+        end
+    end
 
-	local closeB = make("TextButton", { Name = "CloseButton", Position = UDim2.new(1, -38, 0.5, -14),
-		Size = UDim2.fromOffset(28, 28), BackgroundColor3 = Theme.Danger, BackgroundTransparency = 1,
-		Text = "×", TextColor3 = Theme.TextDim, Font = Enum.Font.GothamBold, TextSize = 18,
-		AutoButtonColor = false, ZIndex = 6 }, topBar)
-	corner(closeB, 7); closeB.MouseButton1Click:Connect(function() self:Close() end)
+    local self = setmetatable({}, Window)
 
-	local drag = make("Frame", { Name = "DragArea", Size = UDim2.new(1, -100, 0, 55),
-		BackgroundTransparency = 1, BorderSizePixel = 0, Active = true, ZIndex = 4 }, topBar)
-	self._dragApi = Lib.newDraggable(wrapper, drag, false)
+    self._tweens = {}
+    self._tabs = {}
+    self._visible = false
+    self._minimized = false
+    self._destroyed = false
 
-	local sidebar = make("Frame", { Name = "Sidebar", Position = UDim2.new(0, 0, 0, 55),
-		Size = UDim2.new(0, 156, 1, -55), BackgroundColor3 = Theme.Surface, BorderSizePixel = 0 }, root)
-	make("Frame", { Position = UDim2.new(1, -1, 0, 0), Size = UDim2.new(0, 1, 1, 0),
-		BackgroundColor3 = Theme.Stroke, BackgroundTransparency = 0.25 }, sidebar)
-	self._tabList = make("Frame", { Name = "TabList", Position = UDim2.fromOffset(8, 10),
-		Size = UDim2.new(1, -16, 1, -100), BackgroundTransparency = 1 }, sidebar)
-	make("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, self._tabList)
+    local viewport = getViewport()
+    local w, h = 1000, 580
 
-	local profCard = make("Frame", { Name = "ProfileCard", AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, 8, 1, -10), Size = UDim2.new(1, -16, 0, 58),
-		BackgroundColor3 = Theme.SurfaceAlt, BackgroundTransparency = 0.45 }, sidebar)
-	corner(profCard, 10); stroke(profCard, Theme.Stroke, 0.45)
-	self._profileCard = profCard
-	self._avatar = make("ImageLabel", { Position = UDim2.fromOffset(9, 9), Size = UDim2.fromOffset(40, 40),
-		BackgroundColor3 = Theme.SurfaceHi, ScaleType = Enum.ScaleType.Crop, ClipsDescendants = true }, profCard)
-	corner(self._avatar, 20); stroke(self._avatar, Theme.Stroke, 0.5)
-	self._profileName = make("TextLabel", { Position = UDim2.fromOffset(58, 11), Size = UDim2.new(1, -68, 0, 18),
-		BackgroundTransparency = 1, Text = LocalPlayer.DisplayName or LocalPlayer.Name,
-		Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = Theme.Text,
-		TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd }, profCard)
-	self._profileTag = make("TextLabel", { Position = UDim2.fromOffset(58, 29), Size = UDim2.new(1, -68, 0, 16),
-		BackgroundTransparency = 1, Text = "@" .. LocalPlayer.Name, Font = Enum.Font.GothamMedium,
-		TextSize = 10, TextColor3 = Theme.AccentSoft, TextXAlignment = Enum.TextXAlignment.Left }, profCard)
+    if typeof(config.Size) == "UDim2" then
+        w = config.Size.X.Scale > 0 and viewport.X * config.Size.X.Scale
+            or (config.Size.X.Offset > 0 and config.Size.X.Offset or w)
 
-	self._content = make("Frame", { Name = "Content", Position = UDim2.new(0, 157, 0, 55),
-		Size = UDim2.new(1, -157, 1, -55), BackgroundColor3 = Theme.Bg, ClipsDescendants = true }, root)
+        h = config.Size.Y.Scale > 0 and viewport.Y * config.Size.Y.Scale
+            or (config.Size.Y.Offset > 0 and config.Size.Y.Offset or h)
 
-	self._resizeApi = Lib.newResize(wrapper, function(nw, nh)
-		if self._destroyed then return end
-		self._baseSize = Vector2.new(nw, nh)
-		for _, e in ipairs(self._tabs) do refreshPage(e.Page) end
-		self:ClampPosition()
-	end)
+    elseif typeof(config.Size) == "Vector2" then
+        w, h = config.Size.X, config.Size.Y
+    end
 
-	self:SetTitle(config.Title or "MikuLib", config.Subtitle or ("v" .. Lib.Version))
-	task.spawn(function()
-		local ok, image = pcall(function()
-			return Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
-		end)
-		if ok and image and self._avatar and self._avatar.Parent then self._avatar.Image = image end
-	end)
-	self:SetKeybind(config.Keybind == nil and Enum.KeyCode.RightControl or config.Keybind)
-	table.insert(Lib.Windows, self)
-	local startVisible = config.StartVisible
-	if startVisible == nil then startVisible = config.Visible end
-	if startVisible == nil then startVisible = true end
-	if startVisible then self:Open()
-	else self._rootScale.Scale = 1; self._root.GroupTransparency = 1; self._wrapper.Visible = false end
-	if sh then sh.MikuLibInstance = self end
-	return self
+    if tonumber(config.Width) then
+        w = tonumber(config.Width)
+    end
+
+    if tonumber(config.Height) then
+        h = tonumber(config.Height)
+    end
+
+    w = math.clamp(w, math.min(360, viewport.X - 40), viewport.X - 40)
+    h = math.clamp(h, math.min(240, viewport.Y - 40), viewport.Y - 40)
+
+    self._baseSize = Vector2.new(w, h)
+
+    local gui = make("ScreenGui", {
+        Name = "MikuLib",
+        DisplayOrder = config.DisplayOrder or 9999,
+        IgnoreGuiInset = true,
+        ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    }, PlayerGui)
+
+    self._screenGui = gui
+
+    local wrapper = make("Frame", {
+        Name = "Window",
+        Position = UDim2.fromOffset(
+            math.max(0, (viewport.X - w) / 2),
+            math.max(0, (viewport.Y - h) / 2)
+        ),
+        Size = UDim2.fromOffset(w, h),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ClipsDescendants = false,
+        Active = false,
+        Visible = false
+    }, gui)
+
+    self._wrapper = wrapper
+
+    local root = make("CanvasGroup", {
+        Name = "Root",
+        Size = UDim2.fromScale(1, 1),
+        BackgroundColor3 = Theme.Bg,
+        BorderSizePixel = 0,
+        ClipsDescendants = true
+    }, wrapper)
+
+    corner(root, 14)
+    stroke(root, Theme.Stroke, 0.25)
+
+    self._root = root
+
+    self._rootScale = make("UIScale", {
+        Name = "Scale",
+        Scale = 1
+    }, root)
+
+    local topBar = make("Frame", {
+        Name = "TopBar",
+        Size = UDim2.new(1, 0, 0, 55),
+        BackgroundColor3 = Theme.Surface,
+        BorderSizePixel = 0
+    }, root)
+
+    make("Frame", {
+        Position = UDim2.new(0, 0, 1, -1),
+        Size = UDim2.new(1, 0, 0, 1),
+        BackgroundColor3 = Theme.Stroke,
+        BackgroundTransparency = 0.3,
+        BorderSizePixel = 0
+    }, topBar)
+
+    self._titleLabel = make("TextLabel", {
+        Name = "Title",
+        Position = UDim2.fromOffset(18, 8),
+        Size = UDim2.new(1, -120, 0, 20),
+        BackgroundTransparency = 1,
+        Text = "MikuLib",
+        Font = Enum.Font.GothamBold,
+        TextSize = 15,
+        TextColor3 = Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd
+    }, topBar)
+
+    self._subtitleLabel = make("TextLabel", {
+        Name = "Subtitle",
+        Position = UDim2.fromOffset(18, 29),
+        Size = UDim2.new(1, -120, 0, 14),
+        BackgroundTransparency = 1,
+        Text = "v" .. Lib.Version,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 11,
+        TextColor3 = Theme.TextDim,
+        TextXAlignment = Enum.TextXAlignment.Left
+    }, topBar)
+
+    local minB = make("TextButton", {
+        Name = "MinButton",
+        Position = UDim2.new(1, -72, 0.5, -14),
+        Size = UDim2.fromOffset(28, 28),
+        BackgroundColor3 = Theme.Accent,
+        BackgroundTransparency = 1,
+        Text = "−",
+        TextColor3 = Theme.TextDim,
+        Font = Enum.Font.GothamBold,
+        TextSize = 18,
+        AutoButtonColor = false,
+        ZIndex = 6
+    }, topBar)
+
+    corner(minB, 7)
+
+    minB.MouseButton1Click:Connect(function()
+        self:Minimize()
+    end)
+
+    local closeB = make("TextButton", {
+        Name = "CloseButton",
+        Position = UDim2.new(1, -38, 0.5, -14),
+        Size = UDim2.fromOffset(28, 28),
+        BackgroundColor3 = Theme.Danger,
+        BackgroundTransparency = 1,
+        Text = "×",
+        TextColor3 = Theme.TextDim,
+        Font = Enum.Font.GothamBold,
+        TextSize = 18,
+        AutoButtonColor = false,
+        ZIndex = 6
+    }, topBar)
+
+    corner(closeB, 7)
+
+    closeB.MouseButton1Click:Connect(function()
+        self:Close()
+    end)
+
+    local drag = make("Frame", {
+        Name = "DragArea",
+        Size = UDim2.new(1, -100, 0, 55),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        Active = true,
+        ZIndex = 4
+    }, topBar)
+
+    self._dragApi = Lib.newDraggable(wrapper, drag, false)
+
+    local sidebar = make("Frame", {
+        Name = "Sidebar",
+        Position = UDim2.new(0, 0, 0, 55),
+        Size = UDim2.new(0, 156, 1, -55),
+        BackgroundColor3 = Theme.Surface,
+        BorderSizePixel = 0
+    }, root)
+
+    make("Frame", {
+        Position = UDim2.new(1, -1, 0, 0),
+        Size = UDim2.new(0, 1, 1, 0),
+        BackgroundColor3 = Theme.Stroke,
+        BackgroundTransparency = 0.25
+    }, sidebar)
+
+    self._tabList = make("Frame", {
+        Name = "TabList",
+        Position = UDim2.fromOffset(8, 10),
+        Size = UDim2.new(1, -16, 1, -100),
+        BackgroundTransparency = 1
+    }, sidebar)
+
+    make("UIListLayout", {
+        Padding = UDim.new(0, 8),
+        SortOrder = Enum.SortOrder.LayoutOrder
+    }, self._tabList)
+
+    local profCard = make("Frame", {
+        Name = "ProfileCard",
+        AnchorPoint = Vector2.new(0, 1),
+        Position = UDim2.new(0, 8, 1, -10),
+        Size = UDim2.new(1, -16, 0, 58),
+        BackgroundColor3 = Theme.SurfaceAlt,
+        BackgroundTransparency = 0.45
+    }, sidebar)
+
+    corner(profCard, 10)
+    stroke(profCard, Theme.Stroke, 0.45)
+
+    self._profileCard = profCard
+
+    self._avatar = make("ImageLabel", {
+        Position = UDim2.fromOffset(9, 9),
+        Size = UDim2.fromOffset(40, 40),
+        BackgroundColor3 = Theme.SurfaceHi,
+        ScaleType = Enum.ScaleType.Crop,
+        ClipsDescendants = true
+    }, profCard)
+
+    corner(self._avatar, 20)
+    stroke(self._avatar, Theme.Stroke, 0.5)
+
+    self._profileName = make("TextLabel", {
+        Position = UDim2.fromOffset(58, 11),
+        Size = UDim2.new(1, -68, 0, 18),
+        BackgroundTransparency = 1,
+        Text = LocalPlayer.DisplayName or LocalPlayer.Name,
+        Font = Enum.Font.GothamBold,
+        TextSize = 12,
+        TextColor3 = Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd
+    }, profCard)
+
+    self._profileTag = make("TextLabel", {
+        Position = UDim2.fromOffset(58, 29),
+        Size = UDim2.new(1, -68, 0, 16),
+        BackgroundTransparency = 1,
+        Text = "@" .. LocalPlayer.Name,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 10,
+        TextColor3 = Theme.AccentSoft,
+        TextXAlignment = Enum.TextXAlignment.Left
+    }, profCard)
+
+    self._content = make("Frame", {
+        Name = "Content",
+        Position = UDim2.new(0, 157, 0, 55),
+        Size = UDim2.new(1, -157, 1, -55),
+        BackgroundColor3 = Theme.Bg,
+        ClipsDescendants = true
+    }, root)
+
+    self._resizeApi = Lib.newResize(wrapper, function(nw, nh)
+        if self._destroyed then
+            return
+        end
+
+        self._baseSize = Vector2.new(nw, nh)
+
+        for _, e in ipairs(self._tabs) do
+            refreshPage(e.Page)
+        end
+
+        self:ClampPosition()
+    end)
+
+    self:SetTitle(
+        config.Title or "MikuLib",
+        config.Subtitle or ("v" .. Lib.Version)
+    )
+
+    task.spawn(function()
+        local ok, image = pcall(function()
+            return Players:GetUserThumbnailAsync(
+                LocalPlayer.UserId,
+                Enum.ThumbnailType.HeadShot,
+                Enum.ThumbnailSize.Size100x100
+            )
+        end)
+
+        if ok and image and self._avatar and self._avatar.Parent then
+            self._avatar.Image = image
+        end
+    end)
+
+    self:SetKeybind(
+        config.Keybind == nil and Enum.KeyCode.RightControl or config.Keybind
+    )
+
+    table.insert(Lib.Windows, self)
+
+    local startVisible = config.StartVisible
+
+    if startVisible == nil then
+        startVisible = config.Visible
+    end
+
+    if startVisible == nil then
+        startVisible = true
+    end
+
+    if startVisible then
+        self:Open()
+    else
+        self._rootScale.Scale = 1
+        self._root.GroupTransparency = 1
+        self._wrapper.Visible = false
+    end
+
+    if sh then
+        sh.MikuLibInstance = self
+    end
+
+    return self
 end
+
 
 
 function Lib:SetValue(control, value)
