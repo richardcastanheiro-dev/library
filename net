@@ -1,4 +1,4 @@
-```lua
+
 local Lib = {}
 Lib.Version = "9.0.0"
 
