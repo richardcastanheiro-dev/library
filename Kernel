@@ -1,12 +1,5 @@
 
--- local Window = Lib:CreateWindow({ Title = "Miku", Subtitle = "v1" })
--- local box = Window:CreateTab("Principal", "home")
--- local sec = box:addSection("Config")
--- sec:addToggle("Fly", false, function(state) print(state) end)
--- box:addButton("Executar", function() print("ok") end)
--- box:addTextBox("Nome", "Digite...", "", function(t) print(t) end)
--- box:addSlider("Velocidade", 0, 100, 50, function(v) print(v) end)
--- box:addDropdown("Modo", {"A","B","C"}, "A", function(v) print(v) end)
+
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
