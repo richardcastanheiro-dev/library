@@ -2098,6 +2098,7 @@ end
 Lib._watermarks = Lib._watermarks or {}
 
 
+
 function Lib:CreateWatermark(config)
     if type(config) ~= "table" then
         config = {
@@ -2117,7 +2118,7 @@ function Lib:CreateWatermark(config)
     frame.Position = config.Position or UDim2.fromOffset(16, 16)
     frame.Size = UDim2.fromOffset(220, 32)
     frame.BackgroundColor3 = Color3.fromRGB(20, 20, 23)
-    frame.BackgroundTransparency = 0.03
+    frame.BackgroundTransparency = 0
     frame.BorderSizePixel = 0
     frame.Active = true
     frame.Visible = true
@@ -2127,25 +2128,12 @@ function Lib:CreateWatermark(config)
     corner.CornerRadius = UDim.new(0, 8)
     corner.Parent = frame
 
-    local accent = Instance.new("Frame")
-accent.Name = "Accent"
-accent.AnchorPoint = Vector2.new(0, 0)
-accent.Position = UDim2.fromOffset(0, 0)
-accent.Size = UDim2.new(0, 2, 1, 0)
-accent.BackgroundColor3 = Theme.Accent or Color3.fromRGB(139, 108, 255)
-accent.BorderSizePixel = 0
-accent.ZIndex = 2
-accent.Parent = frame
-
-    local accentCorner = Instance.new("UICorner")
-    accentCorner.CornerRadius = UDim.new(1, 0)
-    accentCorner.Parent = accent
-
     local label = Instance.new("TextLabel")
     label.Name = "Text"
     label.Position = UDim2.fromOffset(12, 0)
-    label.Size = UDim2.new(1, -22, 1, 0)
+    label.Size = UDim2.new(1, -24, 1, 0)
     label.BackgroundTransparency = 1
+    label.BorderSizePixel = 0
     label.Text = tostring(config.Text or "MikuLib")
     label.Font = Enum.Font.GothamMedium
     label.TextSize = 12
@@ -2170,9 +2158,7 @@ accent.Parent = frame
     local destroyed = false
 
     function api.SetText(selfOrValue, maybeValue)
-        if destroyed then
-            return
-        end
+        if destroyed then return end
 
         local value = maybeValue
         if value == nil then
@@ -2183,9 +2169,7 @@ accent.Parent = frame
     end
 
     function api.SetVisible(selfOrValue, maybeValue)
-        if destroyed then
-            return
-        end
+        if destroyed then return end
 
         local value = maybeValue
         if value == nil then
@@ -2196,10 +2180,7 @@ accent.Parent = frame
     end
 
     function api.Destroy()
-        if destroyed then
-            return
-        end
-
+        if destroyed then return end
         destroyed = true
 
         if drag then
@@ -2229,6 +2210,7 @@ accent.Parent = frame
 
     return api
 end
+
 
 
 function Lib:DestroyAll()
