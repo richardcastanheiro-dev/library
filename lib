@@ -2128,12 +2128,14 @@ function Lib:CreateWatermark(config)
     corner.Parent = frame
 
     local accent = Instance.new("Frame")
-    accent.Name = "Accent"
-    accent.Position = UDim2.fromOffset(0, 8)
-    accent.Size = UDim2.new(0, 2, 1, -16)
-    accent.BackgroundColor3 = Theme.Accent or Color3.fromRGB(139, 108, 255)
-    accent.BorderSizePixel = 0
-    accent.Parent = frame
+accent.Name = "Accent"
+accent.AnchorPoint = Vector2.new(0, 0)
+accent.Position = UDim2.fromOffset(0, 0)
+accent.Size = UDim2.new(0, 2, 1, 0)
+accent.BackgroundColor3 = Theme.Accent or Color3.fromRGB(139, 108, 255)
+accent.BorderSizePixel = 0
+accent.ZIndex = 2
+accent.Parent = frame
 
     local accentCorner = Instance.new("UICorner")
     accentCorner.CornerRadius = UDim.new(1, 0)
