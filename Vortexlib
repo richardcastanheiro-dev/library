@@ -1,3 +1,4 @@
+
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -2732,6 +2733,10 @@ function Lib.new(a, b)
 	return Lib:CreateWindow(a)
 end
 
+if type(Lib) ~= "table" or type(Lib.CreateWindow) ~= "function" then
+	error("[MikuLib Compat] Este bloco foi colado fora do arquivo da MikuLib. Ele precisa ficar no MESMO script, logo depois de 'function Lib.new' e antes do 'return Lib' final.")
+end
+
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 
@@ -3059,6 +3064,20 @@ function GroupMeta:Dropdown(first, second)
 	end
 	feature.SetValues = function(_, list)
 		values = normalizeList(list)
+		if type(feature.Value) == "table" then
+			for key in pairs(feature.Value) do
+				local found = false
+				for _, option in ipairs(values) do
+					if option == key then
+						found = true
+						break
+					end
+				end
+				if not found then
+					feature.Value[key] = nil
+				end
+			end
+		end
 		if instance.SetOptions then
 			instance:SetOptions(values)
 		end
@@ -3743,7 +3762,9 @@ function Lib:Dialog(config)
 	return api
 end
 
-Lib.CreateDialog = Lib.Dialog
+function Lib.CreateDialog(config)
+	return Lib:Dialog(config)
+end
 
 function Lib:SaveConfig(name)
 	name = tostring(name or "default")
