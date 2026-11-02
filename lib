@@ -2097,6 +2097,7 @@ end
 
 Lib._watermarks = Lib._watermarks or {}
 
+
 function Lib:CreateWatermark(config)
     if type(config) ~= "table" then
         config = {
@@ -2106,67 +2107,109 @@ function Lib:CreateWatermark(config)
 
     local gui = ensureWatermarkGui()
 
-    local frame = Instance.new("TextButton")
+    local old = gui:FindFirstChild("Watermark")
+    if old then
+        old:Destroy()
+    end
+
+    local frame = Instance.new("Frame")
     frame.Name = "Watermark"
     frame.Position = config.Position or UDim2.fromOffset(16, 16)
-    frame.Size = UDim2.fromOffset(240, 32)
-    frame.BackgroundColor3 = Theme.Surface
-    frame.BackgroundTransparency = 0.1
+    frame.Size = UDim2.fromOffset(220, 32)
+    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 23)
+    frame.BackgroundTransparency = 0.03
     frame.BorderSizePixel = 0
-    frame.Text = tostring(config.Text or "MikuLib")
-    frame.Font = Enum.Font.GothamMedium
-    frame.TextSize = 12
-    frame.TextColor3 = Theme.Text
-    frame.TextXAlignment = Enum.TextXAlignment.Left
-    frame.AutoButtonColor = false
     frame.Active = true
     frame.Visible = true
     frame.Parent = gui
 
-    corner(frame, 8)
-    stroke(frame, Theme.Stroke, 0.35)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = frame
 
-    make("Frame", {
-        Name = "Accent",
-        Size = UDim2.new(0, 3, 1, 0),
-        BackgroundColor3 = Theme.Accent,
-        BorderSizePixel = 0
-    }, frame)
+    local accent = Instance.new("Frame")
+    accent.Name = "Accent"
+    accent.Position = UDim2.fromOffset(0, 8)
+    accent.Size = UDim2.new(0, 2, 1, -16)
+    accent.BackgroundColor3 = Theme.Accent or Color3.fromRGB(139, 108, 255)
+    accent.BorderSizePixel = 0
+    accent.Parent = frame
 
-    make("UIPadding", {
-        PaddingLeft = UDim.new(0, 12),
-        PaddingRight = UDim.new(0, 8)
-    }, frame)
+    local accentCorner = Instance.new("UICorner")
+    accentCorner.CornerRadius = UDim.new(1, 0)
+    accentCorner.Parent = accent
+
+    local label = Instance.new("TextLabel")
+    label.Name = "Text"
+    label.Position = UDim2.fromOffset(12, 0)
+    label.Size = UDim2.new(1, -22, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = tostring(config.Text or "MikuLib")
+    label.Font = Enum.Font.GothamMedium
+    label.TextSize = 12
+    label.TextColor3 = Color3.fromRGB(240, 240, 245)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextYAlignment = Enum.TextYAlignment.Center
+    label.TextTruncate = Enum.TextTruncate.AtEnd
+    label.Parent = frame
 
     local drag
-    if config.Draggable == true then
-        drag = Lib.newDraggable(frame, frame, false)
+    if config.Draggable == true and type(Lib.newDraggable) == "function" then
+        local success, result = pcall(function()
+            return Lib.newDraggable(frame, frame, false)
+        end)
+
+        if success then
+            drag = result
+        end
     end
 
     local api = {}
+    local destroyed = false
 
-    function api.SetText(value, ...)
-        if frame.Parent then
-            if value == api then
-                value = select(1, ...)
-            end
-            frame.Text = tostring(value or "")
+    function api.SetText(selfOrValue, maybeValue)
+        if destroyed then
+            return
         end
+
+        local value = maybeValue
+        if value == nil then
+            value = selfOrValue
+        end
+
+        label.Text = tostring(value or "")
     end
 
-    function api.SetVisible(value, ...)
-        if frame.Parent then
-            if value == api then
-                value = select(1, ...)
-            end
-            frame.Visible = value == true
+    function api.SetVisible(selfOrValue, maybeValue)
+        if destroyed then
+            return
         end
+
+        local value = maybeValue
+        if value == nil then
+            value = selfOrValue
+        end
+
+        frame.Visible = value == true
     end
 
     function api.Destroy()
+        if destroyed then
+            return
+        end
+
+        destroyed = true
+
         if drag then
-            drag:Destroy()
-            drag = nil
+            pcall(function()
+                if type(drag) == "table" and type(drag.Destroy) == "function" then
+                    drag:Destroy()
+                elseif typeof(drag) == "RBXScriptConnection" then
+                    drag:Disconnect()
+                elseif type(drag) == "function" then
+                    drag()
+                end
+            end)
         end
 
         for i = #Lib._watermarks, 1, -1 do
@@ -2181,6 +2224,7 @@ function Lib:CreateWatermark(config)
     end
 
     table.insert(Lib._watermarks, api)
+
     return api
 end
 
