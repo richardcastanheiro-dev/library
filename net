@@ -1,3 +1,4 @@
+```lua
 local Lib = {}
 Lib.Version = "9.0.0"
 
@@ -15,6 +16,7 @@ local GuiService      = game:GetService("GuiService")
 local HttpService     = game:GetService("HttpService")
 local TextService     = game:GetService("TextService")
 
+
 local Theme = {
     Bg         = Color3.fromRGB(12, 12, 16),
     Surface    = Color3.fromRGB(20, 20, 26),
@@ -31,6 +33,7 @@ local Theme = {
     Info       = Color3.fromRGB(100, 160, 255),
 }
 Lib.Theme = Theme
+
 
 local function mk(class, props, parent)
     local inst = Instance.new(class)
@@ -157,6 +160,7 @@ local function finish(c)
     return c
 end
 
+
 Lib.Icons = {}
 task.spawn(function()
     local ok, data = pcall(function()
@@ -215,6 +219,7 @@ function Lib:CreateIconButton(parent, cfg)
     return finish(c)
 end
 
+
 function Lib.newDraggable(gui, handle)
     handle = handle or gui
     local dragging, startInput, startPos
@@ -268,6 +273,7 @@ function Lib.newResize(gui, handle, minSize)
     end))
     return { Destroy = function() for _, c in ipairs(conns) do c:Disconnect() end end }
 end
+
 
 function Lib:CreateSection(parent, cfg)
     cfg = cfg or {}
@@ -651,6 +657,7 @@ function Lib:CreateTextBox(parent, cfg)
     return finish(c)
 end
 
+
 local function createSelect(parent, cfg, multi)
     cfg = cfg or {}
     if type(cfg) == "string" then cfg = { Name = cfg } end
@@ -669,8 +676,8 @@ local function createSelect(parent, cfg, multi)
     end
     options = normalize(cfg.Options)
 
-    local selected = {}
-    local current = nil
+    local selected = {}      -- multi
+    local current = nil      -- single
 
     local frame = mk("Frame", {
         Name = cfg.Name or (multi and "MultiDropdown" or "Dropdown"),
@@ -877,6 +884,7 @@ function Lib:CreateDropdown(parent, cfg) return createSelect(parent, cfg, false)
 function Lib:CreateMultiDropdown(parent, cfg) return createSelect(parent, cfg, true) end
 Lib.CreateMultiSelect = Lib.CreateMultiDropdown
 
+
 function Lib:CreateKeybind(parent, cfg)
     cfg = cfg or {}
     if type(cfg) == "string" then cfg = { Name = cfg } end
@@ -957,6 +965,7 @@ function Lib:CreateKeybind(parent, cfg)
     attach(parent, frame)
     return finish(c)
 end
+
 
 function Lib:CreateColorPicker(parent, cfg)
     cfg = cfg or {}
@@ -1091,6 +1100,7 @@ function Lib:CreateColorPicker(parent, cfg)
     return finish(c)
 end
 
+
 function Lib:CreateWindow(cfg)
     cfg = cfg or {}
     local title = cfg.Title or "MikuLib"
@@ -1168,12 +1178,14 @@ function Lib:CreateWindow(cfg)
         Size = UDim2.new(1, -200, 1, -44), BackgroundTransparency = 1,
     }, root)
 
+    -- grip de resize
     local grip = mk("TextLabel", {
         AnchorPoint = Vector2.new(1, 1), Position = UDim2.fromScale(1, 1),
         Size = UDim2.fromOffset(18, 18), BackgroundTransparency = 1,
         Text = "◢", Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = Theme.Stroke,
     }, root)
     Lib.newResize(root, grip, Vector2.new(420, 260))
+
 
     local win = {
         Title = title,
@@ -1329,6 +1341,7 @@ end
 function Lib:GetWindow() return Lib.Windows[1] end
 function Lib:GetWindows() return Lib.Windows end
 
+
 local function notifyHolder()
     local sg = ensureGui("MikuNotify", 10000)
     local holder = sg:FindFirstChild("Holder")
@@ -1453,6 +1466,7 @@ function Lib:NotifyDanger(title, text, duration)
     return Lib:Notify({ Title = title, Text = text, Duration = duration, Type = "Danger" })
 end
 
+
 function Lib:CreateWatermark(cfg)
     cfg = cfg or {}
     if type(cfg) == "string" then cfg = { Text = cfg } end
@@ -1522,6 +1536,7 @@ function Lib:CreateFPSWatermark(cfg)
     function api:Destroy() conn:Disconnect() lbl:Destroy() end
     return api
 end
+
 
 local currentDialog
 
@@ -1629,6 +1644,7 @@ function Lib:Alert(title, content)
     return Lib:Dialog({ Title = title or "Aviso", Content = content or "" })
 end
 
+
 function Lib:Tooltip(control, text, opts)
     opts = opts or {}
     local inst = control
@@ -1676,6 +1692,7 @@ function Lib:Tooltip(control, text, opts)
         Destroy = function() conn:Disconnect() frame:Destroy() end,
     }
 end
+
 
 function Lib:Splash(cfg)
     cfg = cfg or {}
@@ -1730,6 +1747,7 @@ function Lib:Splash(cfg)
     return api
 end
 
+
 function Lib:CreateLinkButton(parent, text, url, opts)
     opts = opts or {}
     local btn = Lib:CreateButton(parent, {
@@ -1754,6 +1772,7 @@ function Lib:CreateDiscordButton(parent, text, invite)
         Color = Color3.fromRGB(88, 101, 242),
     })
 end
+
 
 function Lib:SetSaveKey(control, key)
     if type(control) ~= "table" then return control end
@@ -1919,6 +1938,7 @@ function Lib:CreateSaveManager(opts)
 
     return sm
 end
+
 
 function Lib:CreateKeybindHud(cfg)
     cfg = cfg or {}
@@ -2158,6 +2178,7 @@ function Lib:CreateDisplayedKeybind(parent, text, defaultKey, cb)
     return kb, entry
 end
 
+
 Lib.ThemePresets = Lib.ThemePresets or {
     Miku = {
         Bg = Color3.fromRGB(12, 12, 16), Surface = Color3.fromRGB(20, 20, 26),
@@ -2251,6 +2272,7 @@ function Lib:CreateThemePicker(parent, opts)
     return made
 end
 
+
 function Lib:CreateConfigPanel(parent, sm)
     sm = sm or Lib:CreateSaveManager()
     local function msg(kind, text)
@@ -2296,6 +2318,7 @@ if Lib.CreateKeybindHud and not Lib.CreateKeybindList then
     Lib.CreateKeybindList = Lib.CreateKeybindHud
 end
 
+
 local boxMap = {
     Toggle = "CreateToggle", Checkbox = "CreateCheckbox", Button = "CreateButton",
     Slider = "CreateSlider", Input = "CreateInput", TextBox = "CreateTextBox",
@@ -2340,6 +2363,7 @@ function Lib:Box(parent)
     end
     return box
 end
+
 
 function Lib:GetControl(name)
     for _, c in ipairs(Lib.Controls) do
