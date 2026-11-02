@@ -1,4 +1,4 @@
-
+-- test
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -131,15 +131,62 @@ local function getPageFrom(object)
 	return nil
 end
 
+local function getElementHeight(elem)
+	if not elem or not elem:IsA("GuiObject") or not elem.Visible then
+		return 0
+	end
+	local layout = elem:FindFirstChildOfClass("UIListLayout")
+	local contentH = layout and layout.AbsoluteContentSize.Y or 0
+	local h = elem.AbsoluteSize.Y
+	local padding = elem:FindFirstChildOfClass("UIPadding")
+	local padY = padding and (padding.PaddingTop.Offset + padding.PaddingBottom.Offset) or 0
+	return math.max(h, contentH + padY)
+end
+
+local function getStackHeight(stack)
+	if not stack or not stack.Visible then
+		return 0
+	end
+	local total = 0
+	for _, card in ipairs(stack:GetChildren()) do
+		if card:IsA("GuiObject") and card.Visible then
+			total = total + getElementHeight(card) + 8
+		end
+	end
+	local layout = stack:FindFirstChildOfClass("UIListLayout")
+	local lH = layout and layout.AbsoluteContentSize.Y or 0
+	return math.max(total, lH)
+end
+
 local function updateCanvas(page)
 	if not page or not page.Parent then
 		return
 	end
 	local holder = page:FindFirstChild("Holder")
-	local layout = holder and holder:FindFirstChildOfClass("UIListLayout")
-	local contentHeight = layout and layout.AbsoluteContentSize.Y or 0
-	local height = math.max(contentHeight + 32, page.AbsoluteSize.Y)
-	page.CanvasSize = UDim2.fromOffset(0, height)
+	if not holder then
+		return
+	end
+	local totalHeight = 0
+	for _, child in ipairs(holder:GetChildren()) do
+		if child:IsA("GuiObject") and child.Visible then
+			if child.Name == "Columns" then
+				local left = child:FindFirstChild("Left")
+				local right = child:FindFirstChild("Right")
+				local leftH = getStackHeight(left)
+				local rightH = getStackHeight(right)
+				local colH = math.max(leftH, rightH)
+				child.Size = UDim2.new(1, 0, 0, colH)
+				totalHeight = totalHeight + colH + 12
+			else
+				local h = getElementHeight(child)
+				totalHeight = totalHeight + h + 8
+			end
+		end
+	end
+	local layout = holder:FindFirstChildOfClass("UIListLayout")
+	local layoutH = layout and layout.AbsoluteContentSize.Y or 0
+	local contentHeight = math.max(totalHeight, layoutH)
+	page.CanvasSize = UDim2.fromOffset(0, contentHeight + 48)
 end
 
 local function refreshPage(page)
@@ -673,11 +720,14 @@ function Window:CreateTab(name, iconName)
 		CanvasSize = UDim2.fromOffset(0, 0),
 		AutomaticCanvasSize = Enum.AutomaticSize.None,
 		ScrollingDirection = Enum.ScrollingDirection.Y,
-		ScrollBarThickness = 3,
+		ScrollBarThickness = 5,
 		ScrollBarImageColor3 = Theme.Accent,
 		ScrollBarImageTransparency = 0.2,
 		Visible = false,
-		ClipsDescendants = true
+		ClipsDescendants = true,
+		Active = true,
+		ScrollingEnabled = true,
+		Selectable = false
 	}, self._content)
 	page:SetAttribute("MikuPage", true)
 
@@ -689,12 +739,16 @@ function Window:CreateTab(name, iconName)
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0
 	}, page)
-	make("UIListLayout", {
+	local holderLayout = make("UIListLayout", {
 		Padding = UDim.new(0, 8),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		HorizontalAlignment = Enum.HorizontalAlignment.Left,
 		VerticalAlignment = Enum.VerticalAlignment.Top
 	}, holder)
+
+	holderLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		refreshPage(page)
+	end)
 
 	local tabButton = make("TextButton", {
 		Name = name .. "Tab",
@@ -2085,23 +2139,27 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 			disabled = value
 			row.Active = not value
 			row.BackgroundTransparency = value and 0.65 or 0.25
+		end,
+		SetOptions = function(newOptions)
+			options = type(newOptions) == "table" and newOptions or {}
+			updateOptions()
+			refreshPage(page)
+		end,
+		GetOptions = function()
+			return options
 		end
 	})
 
-	control.Set = function(_, value)
-		setValue(value, true)
-	end
-	control.Get = function()
-		return Lib:GetValue(control)
-	end
-	control.SetOptions = function(_, newOptions)
-		options = type(newOptions) == "table" and newOptions or {}
-		updateOptions()
-		refreshPage(page)
-	end
-	control.GetOptions = function()
-		return options
-	end
+	pcall(function()
+		control.Set = function(_, value) setValue(value, true) end
+		control.Get = function() return Lib:GetValue(control) end
+		control.SetOptions = function(_, newOptions)
+			options = type(newOptions) == "table" and newOptions or {}
+			updateOptions()
+			refreshPage(page)
+		end
+		control.GetOptions = function() return options end
+	end)
 
 	refreshPage(page)
 	return control
@@ -2733,10 +2791,6 @@ function Lib.new(a, b)
 	return Lib:CreateWindow(a)
 end
 
-if type(Lib) ~= "table" or type(Lib.CreateWindow) ~= "function" then
-	error("[MikuLib Compat] Este bloco foi colado fora do arquivo da MikuLib. Ele precisa ficar no MESMO script, logo depois de 'function Lib.new' e antes do 'return Lib' final.")
-end
-
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
 
@@ -2917,7 +2971,7 @@ local function createCard(host, title, description)
 	}, host)
 	corner(card, 10)
 	stroke(card, Theme.Stroke, 0.45)
-	make("UIListLayout", {
+	local cardLayout = make("UIListLayout", {
 		Padding = UDim.new(0, 6),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		HorizontalAlignment = Enum.HorizontalAlignment.Left,
@@ -2929,6 +2983,14 @@ local function createCard(host, title, description)
 		PaddingLeft = UDim.new(0, 10),
 		PaddingRight = UDim.new(0, 10)
 	}, card)
+
+	cardLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		local page = getPageFrom(card)
+		if page then
+			refreshPage(page)
+		end
+	end)
+
 	if title ~= nil and tostring(title) ~= "" then
 		make("TextLabel", {
 			Name = "CardTitle",
@@ -3078,12 +3140,18 @@ function GroupMeta:Dropdown(first, second)
 				end
 			end
 		end
-		if instance.SetOptions then
-			instance:SetOptions(values)
+		local data = Lib.Controls[instance]
+		if data and data.SetOptions then
+			data.SetOptions(values)
 		end
 	end
+	feature.SetOptions = feature.SetValues
 	feature.GetValues = function()
 		return values
+	end
+	feature.GetOptions = feature.GetValues
+	feature.SetValue = function(_, value)
+		feature:Set(value)
 	end
 	registerFeature(feature)
 	return feature
@@ -3341,7 +3409,7 @@ function TabMeta:GetColumns()
 	local row = make("Frame", {
 		Name = "Columns",
 		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
+		AutomaticSize = Enum.AutomaticSize.None,
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		LayoutOrder = nextLayoutOrder(self.Holder)
@@ -3362,10 +3430,13 @@ function TabMeta:GetColumns()
 			BorderSizePixel = 0,
 			LayoutOrder = order
 		}, row)
-		make("UIListLayout", {
+		local stackLayout = make("UIListLayout", {
 			Padding = UDim.new(0, 8),
 			SortOrder = Enum.SortOrder.LayoutOrder
 		}, stack)
+		stackLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+			refreshPage(self.Page)
+		end)
 		return stack
 	end
 	self._columns = {
