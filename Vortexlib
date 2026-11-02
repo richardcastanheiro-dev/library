@@ -1,1175 +1,1114 @@
-local function InstallCompat(Lib)
-	if Lib.__compat then
-		return Lib.Toggles, Lib.Options
-	end
-	Lib.__compat = true
-
-	local Players = game:GetService("Players")
-	local UIS = game:GetService("UserInputService")
-	local Unknown = Enum.KeyCode.Unknown
-
-	local T = Lib.Theme or {}
-	local C = {
-		Surface = T.Surface or Color3.fromRGB(20, 20, 26),
-		SurfaceAlt = T.SurfaceAlt or Color3.fromRGB(30, 30, 38),
-		Stroke = T.Stroke or Color3.fromRGB(55, 55, 70),
-		AccentSoft = T.AccentSoft or Color3.fromRGB(180, 160, 255),
-		Text = T.Text or Color3.fromRGB(245, 245, 252),
-		TextDim = T.TextDim or Color3.fromRGB(145, 145, 165),
-	}
-
-	local genv = (getgenv and getgenv()) or _G
-	local Toggles, Options = {}, {}
-	Lib.Toggles, Lib.Options, Lib.Flags = Toggles, Options, {}
-	genv.Toggles, genv.Options = Toggles, Options
-	genv.toggles, genv.options = Toggles, Options
-
-	local function make(class, props, parent)
-		local o = Instance.new(class)
-		for k, v in pairs(props or {}) do
-			o[k] = v
-		end
-		if parent then
-			o.Parent = parent
-		end
-		return o
-	end
-
-	local function pick(...)
-		for i = 1, select("#", ...) do
-			local v = (select(i, ...))
-			if v ~= nil then
-				return v
-			end
-		end
-		return nil
-	end
-
-	local function nextOrder(host)
-		local o = (host:GetAttribute("MikuLayoutOrder") or 0) + 1
-		host:SetAttribute("MikuLayoutOrder", o)
-		return o
-	end
-
-	local function parse(a, b)
-		if type(a) == "table" then
-			return a.Flag or a.Idx or a.Id, a
-		end
-		return a, (type(b) == "table" and b) or {}
-	end
-
-	local function fmt(v)
-		return string.format("%.10g", v)
-	end
-
-	local orig = {}
-	local names = {
-		"CreateSection", "CreateLabel", "CreateDivider", "CreateButton", "CreateToggle",
-		"CreateCheckbox", "CreateSlider", "CreateTextBox", "CreateDropdown", "CreateKeybind",
-		"CreateColorPicker", "CreateIcon", "CreateIconButton",
-	}
-	for _, n in ipairs(names) do
-		local f = Lib[n]
-		if f then
-			orig[n] = f
-			Lib[n] = function(self, parent, ...)
-				if type(parent) == "table" and parent.Host then
-					parent = parent.Host
-				end
-				return f(self, parent, ...)
-			end
-		end
-	end
-
-	local warned = {}
-	local function build(name, host, ...)
-		local fn = orig[name]
-		if not fn then
-			warn("[Compat] Lib:" .. name .. " nao existe")
-			return nil
-		end
-		local ok, res = pcall(fn, Lib, host, ...)
-		if ok then
-			return res
-		end
-		local order = host:GetAttribute("MikuLayoutOrder")
-		for _, ch in ipairs(host:GetChildren()) do
-			if ch.LayoutOrder == order and Lib.Controls[ch] then
-				if not warned[name] then
-					warned[name] = true
-					warn("[Compat] " .. name .. " deu erro depois de criar o controle (bug da lib). Ignorado: " .. tostring(res))
-				end
-				return ch
-			end
-		end
-		warn("[Compat] " .. name .. " falhou: " .. tostring(res))
-		return nil
-	end
-
-	local function ensure(ctrl, host)
-		if ctrl then
-			return ctrl
-		end
-		return make("Frame", { Name = "FailedControl", Size = UDim2.fromOffset(0, 0), BackgroundTransparency = 1 }, host)
-	end
-
-	local function newObj(kind, value)
-		local o = { Type = kind, Value = value, CurrentValue = value, _cbs = {} }
-		function o:OnChanged(fn)
-			table.insert(self._cbs, fn)
-			return {
-				Disconnect = function()
-					local i = table.find(self._cbs, fn)
-					if i then
-						table.remove(self._cbs, i)
-					end
-				end,
-			}
-		end
-		function o:Fire()
-			for _, f in ipairs(self._cbs) do
-				task.spawn(f, self.Value)
-			end
-		end
-		function o:Commit(v)
-			self.Value = v
-			self.CurrentValue = v
-			self:Fire()
-		end
-		function o:Get()
-			return self.Value
-		end
-		o.GetValue = o.Get
-		function o:Set(v)
-			return self:SetValue(v)
-		end
-		return o
-	end
-
-	local function register(id, o, isToggle)
-		id = id or ("Flag_" .. tostring(math.random(1, 1000000000)))
-		o.Idx = id
-		Options[id] = o
-		if isToggle then
-			Toggles[id] = o
-		end
-		Lib.Flags[id] = o
-		return o
-	end
-
-	local function rowOf(c)
-		if c:IsA("TextBox") and c.Parent then
-			return c.Parent
-		end
-		return c
-	end
-
-	local function bind(o, getc, cont)
-		o._cont = cont
-		function o:SetVisible(v)
-			rowOf(getc()).Visible = v and true or false
-		end
-		function o:SetDisabled(v)
-			Lib:SetDisabled(getc(), v)
-		end
-		function o:SetText(t)
-			local r = rowOf(getc())
-			local l = r:FindFirstChild("Label", true) or r:FindFirstChildWhichIsA("TextLabel", true)
-			if l then
-				l.Text = tostring(t)
-			end
-		end
-		function o:Destroy()
-			local c = getc()
-			Lib.Controls[c] = nil
-			rowOf(c):Destroy()
-		end
-		o.Control = getc()
-		return o
-	end
-
-	local Container = {}
-	Container.__index = Container
-
-	local function newContainer(host)
-		return setmetatable({ Host = host }, Container)
-	end
-
-	function Container:_toggle(id, info, checkbox)
-		local text = pick(info.Text, info.Title, info.Name, "Toggle")
-		local default = pick(info.Default, info.CurrentValue, false) == true
-		local cb = pick(info.Callback, info.Func)
-		local o = newObj("Toggle", default)
-		local ctrl
-
-		local function onChange(v)
-			o:Commit(v == true)
-			if cb then
-				cb(o.Value)
-			end
-		end
-
-		if checkbox then
-			ctrl = build("CreateCheckbox", self.Host, text, default, onChange)
-		else
-			ctrl = build("CreateToggle", self.Host, {
-				Text = text, Default = default, Callback = onChange, Description = info.Description,
-			})
-		end
-		ctrl = ensure(ctrl, self.Host)
-		bind(o, function() return ctrl end, self)
-
-		function o:SetValue(v)
-			v = v and true or false
-			if v == self.Value then
-				return
-			end
-			Lib:SetValue(ctrl, v)
-		end
-		function o:AddKeyPicker(i, inf)
-			inf = inf or {}
-			inf.Text = inf.Text or (tostring(text) .. " Key")
-			self._cont:_keypicker(i, inf, nil, nil)
-			return self
-		end
-		function o:AddColorPicker(i, inf)
-			inf = inf or {}
-			inf.Text = inf.Text or (tostring(text) .. " Color")
-			self._cont:_color(i, inf)
-			return self
-		end
-
-		if info.Disabled then o:SetDisabled(true) end
-		if info.Visible == false then o:SetVisible(false) end
-		return register(id, o, true)
-	end
-
-	function Container:AddButton(a, b)
-		local info = type(a) == "table" and a or { Text = a, Func = b }
-		local text = pick(info.Text, info.Title, info.Name, "Button")
-		local cb = pick(info.Func, info.Callback)
-		local o = newObj("Button", nil)
-		local ctrl
-		local armed = false
-
-		ctrl = build("CreateButton", self.Host, text, function()
-			if info.DoubleClick then
-				if not armed then
-					armed = true
-					ctrl.Text = "Confirmar?"
-					task.delay(2, function()
-						if armed and ctrl and ctrl.Parent then
-							armed = false
-							ctrl.Text = text
-						end
-					end)
-					return
-				end
-				armed = false
-				ctrl.Text = text
-			end
-			if cb then
-				cb()
-			end
-		end)
-		ctrl = ensure(ctrl, self.Host)
-		bind(o, function() return ctrl end, self)
-		function o:SetText(t)
-			ctrl.Text = tostring(t)
-		end
-		function o:AddButton(a2, b2)
-			return self._cont:AddButton(a2, b2)
-		end
-		function o:SetValue() end
-
-		if info.Disabled then o:SetDisabled(true) end
-		if info.Visible == false then o:SetVisible(false) end
-		return o
-	end
-
-	function Container:_slider(id, info)
-		local text = pick(info.Text, info.Title, info.Name, "Slider")
-		local min = pick(info.Min, info.Range and info.Range[1], 0)
-		local max = pick(info.Max, info.Range and info.Range[2], 100)
-		local default = pick(info.Default, info.CurrentValue, min)
-		local inc = info.Increment
-		local rounding = pick(info.Rounding, 0)
-		local suffix = pick(info.Suffix, info.ValueName, "")
-		local cb = pick(info.Callback, info.Func)
-
-		local function fix(v)
-			if inc and inc > 0 then
-				return math.floor(v / inc + 0.5) * inc
-			end
-			local m = 10 ^ rounding
-			return math.floor(v * m + 0.5) / m
-		end
-
-		local o = newObj("Slider", fix(default))
-		o.Min, o.Max = min, max
-		local ctrl
-
-		local function show(v)
-			if ctrl then
-				local vl = ctrl:FindFirstChild("Value")
-				if vl then
-					vl.Text = fmt(v) .. (suffix ~= "" and (" " .. suffix) or "")
-				end
-			end
-		end
-
-		local function onChange(v)
-			v = fix(v)
-			show(v)
-			if v == o.Value then
-				return
-			end
-			o:Commit(v)
-			if cb then
-				cb(v)
-			end
-		end
-
-		ctrl = build("CreateSlider", self.Host, text, min, max, default, onChange)
-		ctrl = ensure(ctrl, self.Host)
-		bind(o, function() return ctrl end, self)
-		show(o.Value)
-
-		function o:SetValue(v)
-			Lib:SetValue(ctrl, tonumber(v) or min)
-		end
-
-		if info.Disabled then o:SetDisabled(true) end
-		if info.Visible == false then o:SetVisible(false) end
-		return register(id, o, false)
-	end
-
-	local function playerNames(excludeLocal)
-		local t = {}
-		for _, p in ipairs(Players:GetPlayers()) do
-			if not (excludeLocal and p == Players.LocalPlayer) then
-				table.insert(t, p.Name)
-			end
-		end
-		return t
-	end
-
-	function Container:_dropdown(id, info, flavor)
-		local text = pick(info.Text, info.Title, info.Name, "Dropdown")
-		local multi = info.Multi == true or info.MultipleOptions == true
-		local cb = pick(info.Callback, info.Func)
-		local values = {}
-		if info.SpecialType == "Player" then
-			values = playerNames(info.ExcludeLocalPlayer)
-		else
-			for i, v in ipairs(pick(info.Values, info.Options, {})) do
-				values[i] = v
-			end
-		end
-
-		local function toNames(v)
-			local out = {}
-			if type(v) == "table" then
-				for k, x in pairs(v) do
-					if type(k) == "number" then
-						if type(x) == "number" and values[x] ~= nil then
-							table.insert(out, values[x])
-						elseif type(x) ~= "number" and x ~= false and x ~= nil then
-							table.insert(out, x)
-						end
-					elseif x then
-						table.insert(out, k)
-					end
-				end
-			elseif type(v) == "number" and values[v] ~= nil then
-				out[1] = values[v]
-			elseif v ~= nil and type(v) ~= "number" then
-				out[1] = v
-			end
-			return out
-		end
-
-		local function filter(list)
-			local out = {}
-			for _, n in ipairs(list) do
-				if table.find(values, n) then
-					table.insert(out, n)
-				end
-			end
-			return out
-		end
-
-		local function asValue(list)
-			if multi then
-				local m = {}
-				for _, n in ipairs(list) do
-					m[n] = true
-				end
-				return m
-			end
-			return list[1]
-		end
-
-		local defNames = filter(toNames(pick(info.Default, info.CurrentOption)))
-		local o = newObj("Dropdown", asValue(defNames))
-		o.Multi, o.Values = multi, values
-		if not multi and o.Value == nil then
-			o.Value = values[1]
-			o.CurrentValue = o.Value
-		end
-
-		local ctrl
-		local function onChange(v)
-			local list = multi and v or { v }
-			local nv = asValue(list)
-			o.Value, o.CurrentValue, o.CurrentOption = nv, nv, list
-			if cb then
-				if flavor == "ray" then
-					cb(list)
-				else
-					cb(nv)
-				end
-			end
-			o:Fire()
-		end
-
-		local function create(defList)
-			local c = build("CreateDropdown", self.Host, {
-				Text = text,
-				Values = values,
-				Default = multi and defList or defList[1],
-				Multi = multi,
-				Searchable = info.Searchable,
-				Callback = onChange,
-			})
-			return ensure(c, self.Host)
-		end
-
-		ctrl = create(defNames)
-		bind(o, function() return ctrl end, self)
-
-		function o:SetValue(v)
-			local list = filter(toNames(v))
-			if multi then
-				Lib:SetValue(ctrl, list)
-			elseif list[1] ~= nil then
-				Lib:SetValue(ctrl, list[1])
-			end
-		end
-
-		function o:SetValues(newValues)
-			local keep = filter(toNames(o.Value))
-			values = {}
-			for i, v in ipairs(newValues or {}) do
-				values[i] = v
-			end
-			o.Values = values
-			keep = filter(keep)
-			local order = ctrl.LayoutOrder
-			Lib.Controls[ctrl] = nil
-			ctrl:Destroy()
-			ctrl = create(keep)
-			ctrl.LayoutOrder = order
-			o.Control = ctrl
-			o.Value = asValue(keep)
-			if not multi and o.Value == nil then
-				o.Value = values[1]
-			end
-			o.CurrentValue = o.Value
-		end
-		o.Refresh = o.SetValues
-
-		if info.SpecialType == "Player" then
-			local function refresh()
-				o:SetValues(playerNames(info.ExcludeLocalPlayer))
-			end
-			Players.PlayerAdded:Connect(refresh)
-			Players.PlayerRemoving:Connect(function()
-				task.defer(refresh)
-			end)
-		end
-
-		if info.Disabled then o:SetDisabled(true) end
-		if info.Visible == false then o:SetVisible(false) end
-		return register(id, o, false)
-	end
-
-	function Container:_input(id, info)
-		local text = pick(info.Text, info.Title, info.Name, "Input")
-		local default = tostring(pick(info.Default, info.Value, ""))
-		local placeholder = tostring(pick(info.Placeholder, info.PlaceholderText, ""))
-		local cb = pick(info.Callback, info.Func)
-		local o = newObj("Input", default)
-		local ctrl
-
-		local function onChange(v)
-			if info.Numeric then
-				local n = tonumber(v)
-				if not n then
-					if ctrl then ctrl.Text = tostring(o.Value) end
-					return
-				end
-			end
-			o:Commit(v)
-			if cb then
-				cb(v)
-			end
-			if info.TextDisappear or info.RemoveTextAfterFocusLost then
-				ctrl.Text = ""
-			end
-		end
-
-		ctrl = build("CreateTextBox", self.Host, text, placeholder, default, onChange)
-		ctrl = ensure(ctrl, self.Host)
-		bind(o, function() return ctrl end, self)
-
-		function o:SetValue(v)
-			Lib:SetValue(ctrl, tostring(v))
-		end
-
-		if info.Disabled then o:SetDisabled(true) end
-		if info.Visible == false then o:SetVisible(false) end
-		return register(id, o, false)
-	end
-
-	function Container:AddLabel(a, b)
-		local id, text
-		if type(b) == "table" then
-			id, text = a, b.Text or ""
-		elseif type(a) == "table" then
-			id, text = a.Flag or a.Idx, a.Text or a.Title or a.Name or ""
-		else
-			text = a or ""
-		end
-		local host = self.Host
-		local lbl = ensure(build("CreateLabel", host, tostring(text)), host)
-		if lbl:IsA("TextLabel") then
-			lbl.RichText = true
-		end
-		local o = newObj("Label", text)
-		bind(o, function() return lbl end, self)
-		function o:SetText(t)
-			lbl.Text = tostring(t)
-		end
-		function o:SetValue(t)
-			lbl.Text = tostring(t)
-		end
-		function o:AddKeyPicker(i, inf)
-			inf = inf or {}
-			inf.Text = inf.Text or lbl.Text
-			self._cont:_keypicker(i, inf, nil, lbl)
-			return self
-		end
-		function o:AddColorPicker(i, inf)
-			inf = inf or {}
-			inf.Text = inf.Text or lbl.Text
-			self._cont:_color(i, inf, lbl)
-			return self
-		end
-		if id then
-			register(id, o, false)
-		end
-		return o
-	end
-
-	function Container:AddParagraph(a, b)
-		local title, content
-		if type(a) == "table" then
-			title, content = a.Title or a.Name or "", a.Content or a.Text or ""
-		else
-			title, content = a or "", b or ""
-		end
-		local t = ensure(build("CreateLabel", self.Host, "<b>" .. tostring(title) .. "</b>"), self.Host)
-		local c = ensure(build("CreateLabel", self.Host, tostring(content)), self.Host)
-		if t:IsA("TextLabel") then t.RichText = true end
-		if c:IsA("TextLabel") then c.TextColor3 = C.TextDim end
-		local o = {}
-		function o:SetTitle(x) t.Text = "<b>" .. tostring(x) .. "</b>" end
-		function o:SetContent(x) c.Text = tostring(x) end
-		function o:Set(cfg)
-			if type(cfg) == "table" then
-				if cfg.Title then self:SetTitle(cfg.Title) end
-				if cfg.Content then self:SetContent(cfg.Content) end
-			end
-		end
-		function o:Destroy() t:Destroy() c:Destroy() end
-		return o
-	end
-
-	function Container:AddDivider(text)
-		if type(text) == "table" then
-			text = text.Text or text.Title
-		end
-		if type(text) == "string" and text ~= "" then
-			build("CreateSection", self.Host, text)
-		else
-			build("CreateDivider", self.Host)
-		end
-		return self
-	end
-
-	function Container:AddSection(a)
-		local name = a
-		if type(a) == "table" then
-			name = a.Name or a.Title or a.Text
-		end
-		local frame = make("Frame", {
-			Name = "Section",
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			BackgroundTransparency = 1,
-			LayoutOrder = nextOrder(self.Host),
-		}, self.Host)
-		make("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, frame)
-		local header = build("CreateSection", frame, tostring(name or "Section"))
-		local sec = newContainer(frame)
-		function sec:Set(t)
-			local l = header and header:FindFirstChild("Title")
-			if l then
-				l.Text = tostring(t)
-			end
-		end
-		return sec
-	end
-
-	local function keyFrom(v)
-		if typeof(v) == "EnumItem" then
-			return v
-		end
-		if type(v) == "string" and v ~= "" and v ~= "None" then
-			local ok, k = pcall(function()
-				return Enum.KeyCode[v]
-			end)
-			if ok and k then
-				return k
-			end
-		end
-		return Unknown
-	end
-
-	function Container:_keypicker(id, info, flavor, replace)
-		info = info or {}
-		local text = pick(info.Text, info.Title, info.Name, "Keybind")
-		local mode = info.Mode
-		if not mode then
-			if flavor == "ray" then
-				mode = info.HoldToInteract and "Hold" or "Press"
-			elseif flavor == "orion" then
-				mode = info.Hold and "Hold" or "Press"
-			else
-				mode = "Toggle"
-			end
-		end
-		local cb = pick(info.Callback, info.Func)
-		local key0 = keyFrom(pick(info.Default, info.CurrentKeybind))
-
-		local frame = ensure(build("CreateKeybind", self.Host, text, key0, nil), self.Host)
-		if replace then
-			frame.LayoutOrder = replace.LayoutOrder
-			replace:Destroy()
-		end
-
-		local btn = frame:FindFirstChildWhichIsA("TextButton")
-		if btn and key0 == Unknown then
-			btn.Text = "None"
-		end
-
-		local o = newObj("KeyPicker", nil)
-		o.Value, o.CurrentValue = nil, nil
-		o.Mode, o.Toggled, o._click = mode, (mode == "Always"), {}
-		setmetatable(o, {
-			__index = function(_, k)
-				if k == "Value" or k == "CurrentValue" then
-					local kk = Lib:GetValue(frame)
-					if kk and kk ~= Unknown then
-						return kk.Name
-					end
-					return "None"
-				end
-			end,
-		})
-		bind(o, function() return frame end, self)
-
-		function o:GetState()
-			if self.Mode == "Always" then
-				return true
-			end
-			return self.Toggled
-		end
-		function o:OnClick(fn)
-			table.insert(self._click, fn)
-		end
-		function o:SetValue(v)
-			if type(v) == "table" then
-				if v[2] then self.Mode = v[2] end
-				v = v[1]
-			end
-			local k = keyFrom(v)
-			if k ~= Unknown then
-				Lib:SetValue(frame, k)
-			end
-			self:Fire()
-		end
-
-		local listening, lastRebind = false, 0
-		if btn then
-			btn:GetPropertyChangedSignal("Text"):Connect(function()
-				if btn.Text == "Pressione..." then
-					listening = true
-				elseif listening then
-					listening = false
-					lastRebind = os.clock()
-					o:Fire()
-					if info.ChangedCallback then
-						task.spawn(info.ChangedCallback, o.Value)
-					end
-				end
-			end)
-		end
-
-		local function emit(state)
-			if not cb then return end
-			if flavor == "ray" then
-				task.spawn(cb, o.Value)
-			elseif flavor == "orion" then
-				task.spawn(cb)
-			else
-				task.spawn(cb, state)
-			end
-		end
-
-		local function activeKey()
-			local k = Lib:GetValue(frame)
-			if k and k ~= Unknown then
-				return k
-			end
-			return nil
-		end
-
-		local c1 = UIS.InputBegan:Connect(function(input, gp)
-			if listening or os.clock() - lastRebind < 0.25 then return end
-			if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
-			if gp or UIS:GetFocusedTextBox() then return end
-			local k = activeKey()
-			if not k or input.KeyCode ~= k then return end
-			for _, f in ipairs(o._click) do
-				task.spawn(f)
-			end
-			if o.Mode == "Toggle" then
-				o.Toggled = not o.Toggled
-				emit(o.Toggled)
-			elseif o.Mode == "Hold" then
-				o.Toggled = true
-				emit(true)
-			elseif o.Mode == "Press" then
-				emit(true)
-			end
-		end)
-
-		local c2 = UIS.InputEnded:Connect(function(input)
-			if o.Mode ~= "Hold" or input.UserInputType ~= Enum.UserInputType.Keyboard then return end
-			local k = activeKey()
-			if k and input.KeyCode == k and o.Toggled then
-				o.Toggled = false
-				emit(false)
-			end
-		end)
-
-		frame.Destroying:Connect(function()
-			c1:Disconnect()
-			c2:Disconnect()
-		end)
-
-		return register(id, o, false)
-	end
-
-	function Container:_color(id, info, replace)
-		info = info or {}
-		local text = pick(info.Text, info.Title, info.Name, "Color")
-		local default = pick(info.Default, info.Color, info.Value, Color3.fromRGB(255, 255, 255))
-		local cb = pick(info.Callback, info.Func)
-		local o = newObj("ColorPicker", default)
-		o.Transparency = info.Transparency or 0
-
-		local ctrl
-		local function onChange(c)
-			o:Commit(c)
-			if cb then
-				cb(c)
-			end
-		end
-		ctrl = ensure(build("CreateColorPicker", self.Host, text, default, onChange), self.Host)
-		if replace then
-			ctrl.LayoutOrder = replace.LayoutOrder
-			replace:Destroy()
-		end
-		bind(o, function() return ctrl end, self)
-		function o:SetValue(c)
-			if typeof(c) == "Color3" then
-				Lib:SetValue(ctrl, c)
-			end
-		end
-		o.SetValueRGB = o.SetValue
-		return register(id, o, false)
-	end
-
-	function Container:AddDependencyBox()
-		local frame = make("Frame", {
-			Name = "DependencyBox",
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			BackgroundTransparency = 1,
-			LayoutOrder = nextOrder(self.Host),
-		}, self.Host)
-		make("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, frame)
-		local box = newContainer(frame)
-
-		function box:SetupDependencies(deps)
-			local function ok(obj, req)
-				if not obj then return false end
-				local v = obj.Value
-				if obj.Multi and type(v) == "table" then
-					return v[req] == true
-				end
-				return v == req
-			end
-			local function update()
-				local show = true
-				for _, d in ipairs(deps) do
-					if not ok(d[1], d[2]) then
-						show = false
-						break
-					end
-				end
-				frame.Visible = show
-			end
-			for _, d in ipairs(deps) do
-				if d[1] and d[1].OnChanged then
-					d[1]:OnChanged(update)
-				end
-			end
-			update()
-		end
-		function box:SetVisible(v)
-			frame.Visible = v and true or false
-		end
-		return box
-	end
-
-	local function columns(tab)
-		if tab._cols then
-			return tab._cols
-		end
-		local holder = tab.Host
-		local row = make("Frame", {
-			Name = "Columns",
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			BackgroundTransparency = 1,
-			LayoutOrder = nextOrder(holder),
-		}, holder)
-		make("UIListLayout", {
-			FillDirection = Enum.FillDirection.Horizontal,
-			Padding = UDim.new(0, 10),
-			SortOrder = Enum.SortOrder.LayoutOrder,
-			VerticalAlignment = Enum.VerticalAlignment.Top,
-		}, row)
-
-		local function col(order)
-			local c = make("Frame", {
-				Size = UDim2.new(0.5, -5, 0, 0),
-				AutomaticSize = Enum.AutomaticSize.Y,
-				BackgroundTransparency = 1,
-				LayoutOrder = order,
-			}, row)
-			make("UIListLayout", { Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder }, c)
-			return c
-		end
-		tab._cols = { Left = col(1), Right = col(2) }
-		return tab._cols
-	end
-
-	local function card(parent, title, icon)
-		local box = make("Frame", {
-			Name = "Groupbox",
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			BackgroundColor3 = C.Surface,
-			BackgroundTransparency = 0.1,
-			BorderSizePixel = 0,
-			LayoutOrder = nextOrder(parent),
-		}, parent)
-		make("UICorner", { CornerRadius = UDim.new(0, 10) }, box)
-		make("UIStroke", { Color = C.Stroke, Transparency = 0.35, Thickness = 1 }, box)
-		make("UIPadding", {
-			PaddingTop = UDim.new(0, 10), PaddingBottom = UDim.new(0, 10),
-			PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10),
-		}, box)
-		make("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, box)
-
-		if title then
-			local head = make("Frame", { Name = "Head", Size = UDim2.new(1, 0, 0, 22), BackgroundTransparency = 1, LayoutOrder = 0 }, box)
-			local left = 0
-			local ic = icon and Lib.GetCustomIcon and Lib:GetCustomIcon(icon)
-			if ic and ic.Url then
-				make("ImageLabel", {
-					Size = UDim2.fromOffset(16, 16),
-					Position = UDim2.new(0, 0, 0.5, -8),
-					BackgroundTransparency = 1,
-					Image = ic.Url,
-					ImageRectOffset = ic.ImageRectOffset or Vector2.zero,
-					ImageRectSize = ic.ImageRectSize or Vector2.zero,
-					ImageColor3 = C.AccentSoft,
-				}, head)
-				left = 22
-			end
-			make("TextLabel", {
-				Name = "Title",
-				Position = UDim2.fromOffset(left, 0),
-				Size = UDim2.new(1, -left, 1, 0),
-				BackgroundTransparency = 1,
-				RichText = true,
-				Text = tostring(title),
-				Font = Enum.Font.GothamBold,
-				TextSize = 13,
-				TextColor3 = C.AccentSoft,
-				TextXAlignment = Enum.TextXAlignment.Left,
-				TextTruncate = Enum.TextTruncate.AtEnd,
-			}, head)
-		end
-		return box
-	end
-
-	function Container:_groupbox(side, title, icon)
-		local cols = columns(self)
-		local box = card(cols[side], title, icon)
-		local g = newContainer(box)
-		function g:SetVisible(v)
-			box.Visible = v and true or false
-		end
-		return g
-	end
-
-	function Container:_tabbox(side)
-		local cols = columns(self)
-		local box = card(cols[side], nil)
-		local bar = make("Frame", { Name = "Bar", Size = UDim2.new(1, 0, 0, 26), BackgroundTransparency = 1, LayoutOrder = 0 }, box)
-		make("UIListLayout", {
-			FillDirection = Enum.FillDirection.Horizontal,
-			Padding = UDim.new(0, 6),
-			SortOrder = Enum.SortOrder.LayoutOrder,
-		}, bar)
-
-		local tb = { Tabs = {} }
-		function tb:AddTab(name)
-			local content = make("Frame", {
-				Size = UDim2.new(1, 0, 0, 0),
-				AutomaticSize = Enum.AutomaticSize.Y,
-				BackgroundTransparency = 1,
-				LayoutOrder = 1,
-				Visible = false,
-			}, box)
-			make("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, content)
-
-			local b = make("TextButton", {
-				Size = UDim2.new(0, 0, 1, 0),
-				AutomaticSize = Enum.AutomaticSize.X,
-				BackgroundColor3 = C.SurfaceAlt,
-				BackgroundTransparency = 0.4,
-				Text = tostring(name),
-				Font = Enum.Font.GothamMedium,
-				TextSize = 12,
-				TextColor3 = C.TextDim,
-				AutoButtonColor = false,
-				BorderSizePixel = 0,
-				LayoutOrder = #self.Tabs + 1,
-			}, bar)
-			make("UICorner", { CornerRadius = UDim.new(0, 6) }, b)
-			make("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) }, b)
-
-			table.insert(self.Tabs, { Content = content, Button = b })
-			local tabs = self.Tabs
-			local function show()
-				for _, t in ipairs(tabs) do
-					local on = t.Content == content
-					t.Content.Visible = on
-					t.Button.TextColor3 = on and C.Text or C.TextDim
-				end
-			end
-			b.MouseButton1Click:Connect(show)
-			if #tabs == 1 then
-				show()
-			end
-			return newContainer(content)
-		end
-		return tb
-	end
-
-	function Container:AddLeftGroupbox(t, i) return self:_groupbox("Left", t, i) end
-	function Container:AddRightGroupbox(t, i) return self:_groupbox("Right", t, i) end
-	function Container:AddLeftTabbox() return self:_tabbox("Left") end
-	function Container:AddRightTabbox() return self:_tabbox("Right") end
-	function Container:AddGroupbox(info)
-		info = type(info) == "table" and info or { Name = info }
-		return self:_groupbox(info.Side == 2 and "Right" or "Left", info.Name or info.Title, info.IconName or info.Icon)
-	end
-	function Container:AddTabbox(info)
-		info = type(info) == "table" and info or {}
-		return self:_tabbox(info.Side == 2 and "Right" or "Left")
-	end
-
-	function Container:AddToggle(a, b) local i, f = parse(a, b) return self:_toggle(i, f, false) end
-	function Container:AddCheckbox(a, b) local i, f = parse(a, b) return self:_toggle(i, f, true) end
-	Container.CreateToggle = Container.AddToggle
-	function Container:AddSlider(a, b) local i, f = parse(a, b) return self:_slider(i, f) end
-	Container.CreateSlider = Container.AddSlider
-	function Container:AddDropdown(a, b) local i, f = parse(a, b) return self:_dropdown(i, f, nil) end
-	function Container:CreateDropdown(a, b) local i, f = parse(a, b) return self:_dropdown(i, f, "ray") end
-	function Container:AddInput(a, b) local i, f = parse(a, b) return self:_input(i, f) end
-	Container.AddTextbox = Container.AddInput
-	Container.AddTextBox = Container.AddInput
-	Container.CreateInput = Container.AddInput
-	function Container:AddKeyPicker(a, b) local i, f = parse(a, b) return self:_keypicker(i, f, nil) end
-	Container.AddKeybind = Container.AddKeyPicker
-	function Container:AddBind(a, b) local i, f = parse(a, b) return self:_keypicker(i, f, "orion") end
-	function Container:CreateKeybind(a, b) local i, f = parse(a, b) return self:_keypicker(i, f, "ray") end
-	function Container:AddColorPicker(a, b) local i, f = parse(a, b) return self:_color(i, f) end
-	Container.AddColorpicker = Container.AddColorPicker
-	Container.CreateColorPicker = Container.AddColorPicker
-	Container.CreateButton = Container.AddButton
-	Container.CreateLabel = Container.AddLabel
-	Container.CreateParagraph = Container.AddParagraph
-	Container.CreateDivider = Container.AddDivider
-	Container.CreateSection = Container.AddSection
-
-	local function cleanIcon(icon)
-		if type(icon) == "string" then
-			return (icon:gsub("^lucide%-", ""))
-		end
-		return icon
-	end
-
-	local function makeTab(win, page, btn, name)
-		local holder = page:FindFirstChild("Holder")
-		local layout = holder and holder:FindFirstChildOfClass("UIListLayout")
-		if btn then
-			local lbl = btn:FindFirstChild("Label")
-			if lbl then
-				lbl.RichText = true
-			end
-		end
-		if layout then
-			layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-				if page.Parent then
-					page.CanvasSize = UDim2.fromOffset(0, math.max(layout.AbsoluteContentSize.Y + 32, page.AbsoluteSize.Y))
-				end
-			end)
-		end
-		local tab = newContainer(holder or page)
-		tab.Page, tab.Button, tab.Window, tab.Name, tab.IsTab = page, btn, win, name, true
-		function tab:Select()
-			win:SelectTab(page)
-		end
-		return tab
-	end
-
-	local patched = false
-	local function patchWindow(win)
-		if patched then return end
-		local mt = getmetatable(win)
-		local cls = mt and mt.__index
-		if type(cls) ~= "table" then return end
-		patched = true
-
-		local origCreateTab = cls.CreateTab
-		cls.CreateTab = function(self, name, icon, ...)
-			if type(name) == "table" then
-				local c = name
-				name = c.Title or c.Name or c.Text or "Tab"
-				icon = c.Icon or c.IconName or icon
-			end
-			local page, btn = origCreateTab(self, tostring(name or "Tab"), cleanIcon(icon), ...)
-			return makeTab(self, page, btn, name)
-		end
-		cls.AddTab = function(self, name, icon) return self:CreateTab(name, icon) end
-		cls.MakeTab = cls.AddTab
-		cls.AddKeyTab = cls.AddTab
-
-		local origSelect = cls.SelectTab
-		cls.SelectTab = function(self, target)
-			if type(target) == "table" and target.Page then
-				target = target.Page
-			end
-			return origSelect(self, target)
-		end
-
-		cls.Dialog = function(self, cfg)
-			cfg = type(cfg) == "table" and cfg or {}
-			return Lib:Notify(cfg.Title or "Aviso", cfg.Content or "", 5)
-		end
-	end
-
-	local origCreateWindow = Lib.CreateWindow
-	Lib.CreateWindow = function(self, cfg, ...)
-		local mapped = {}
-		if type(cfg) == "table" then
-			for k, v in pairs(cfg) do
-				mapped[k] = v
-			end
-		end
-		mapped.Title = mapped.Title or mapped.Name or mapped.Text
-		mapped.Subtitle = mapped.Subtitle or mapped.SubTitle or mapped.Footer
-		mapped.Keybind = mapped.Keybind or mapped.ToggleKeybind or mapped.MinimizeKey
-		local win = origCreateWindow(self, mapped, ...)
-		patchWindow(win)
-		return win
-	end
-	Lib.MakeWindow = function(self, cfg) return self:CreateWindow(cfg) end
-	Lib.Init = function() end
-
-	local origNotify = Lib.Notify
-	Lib.Notify = function(self, a, b, c)
-		if type(a) == "table" then
-			local d = a.Time or a.Duration or 4
-			if type(d) ~= "number" then d = 4 end
-			return origNotify(self, a.Title or a.Name or "Notificação", a.Description or a.Content or a.Text or a.SubContent or "", d)
-		elseif type(a) == "string" and type(b) == "number" then
-			return origNotify(self, "Notificação", a, b)
-		end
-		return origNotify(self, a, b, c)
-	end
-	Lib.MakeNotification = function(self, cfg) return self:Notify(cfg) end
-
-	Lib.Toggle = function(self, v)
-		local w = self.Windows[1]
-		if w then
-			if v == nil then w:Toggle() else w:SetVisible(v) end
-		end
-	end
-
-	local unloadCbs = {}
-	Lib.OnUnload = function(_, fn) table.insert(unloadCbs, fn) end
-	local origDestroyAll = Lib.DestroyAll
-	Lib.DestroyAll = function(self)
-		local cbs = unloadCbs
-		unloadCbs = {}
-		for _, f in ipairs(cbs) do
-			pcall(f)
-		end
-		Lib.Unloaded = true
-		return origDestroyAll(self)
-	end
-	Lib.Unload = function(self) return self:DestroyAll() end
-
-	local function stub()
-		local s
-		s = setmetatable({}, { __index = function() return function() return s end end })
-		return s
-	end
-	Lib.SaveManager = stub()
-	Lib.ThemeManager = stub()
-
-	return Toggles, Options
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+
+Lib.Options = {}
+Lib.Toggles = {}
+Lib.Registry = {}
+Lib.ByInstance = {}
+Lib.Themes = {}
+Lib.Compat = "Obsidian"
+
+local Options = Lib.Options
+local Toggles = Lib.Toggles
+local RawOptions = {}
+local RawToggles = {}
+Lib.Flags = RawOptions
+
+local FeatureMeta = {}
+FeatureMeta.__index = FeatureMeta
+
+local GroupMeta = {}
+GroupMeta.__index = GroupMeta
+
+local TabMeta = {}
+TabMeta.__index = TabMeta
+
+local function roundTo(value, decimals)
+	local step = 10 ^ (tonumber(decimals) or 0)
+	local number = tonumber(value) or 0
+	return math.floor(number * step + 0.5) / step
 end
 
-return InstallCompat
+local function normalizeList(list)
+	local result = {}
+	if type(list) ~= "table" then
+		return result
+	end
+	for _, value in ipairs(list) do
+		table.insert(result, value)
+	end
+	if #result == 0 then
+		for key, value in pairs(list) do
+			if type(key) == "string" then
+				table.insert(result, key)
+			end
+		end
+		table.sort(result)
+	end
+	return result
+end
+
+local function readConfig(first, second)
+	local config = {}
+	if type(first) == "table" then
+		for key, value in pairs(first) do
+			config[key] = value
+		end
+	else
+		if type(second) == "table" then
+			for key, value in pairs(second) do
+				config[key] = value
+			end
+		end
+		config.Text = config.Text or tostring(first)
+	end
+	config.Index = config.Index or config.ID or config.Id or config.Flag
+	if config.Index == nil and type(first) ~= "table" then
+		config.Index = tostring(first)
+	end
+	config.Title = config.Title or config.Text or config.Name
+	return config
+end
+
+local function fireFeature(feature, value)
+	feature.Value = value
+	local id = feature.Id
+	if id then
+		Options[id] = feature
+		RawOptions[id] = value
+		if feature.Type == "Toggle" then
+			Toggles[id] = feature
+			RawToggles[id] = value
+		end
+	end
+	local listeners = feature._listeners
+	for index = 1, #listeners do
+		safeCall(listeners[index], value, feature)
+	end
+end
+
+local function createFeature(kind, id, default)
+	return setmetatable({
+		Type = kind,
+		Id = id,
+		Value = default,
+		_listeners = {}
+	}, FeatureMeta)
+end
+
+local function registerFeature(feature)
+	local id = feature.Id
+	if id then
+		Options[id] = feature
+		Lib.Registry[id] = feature
+		RawOptions[id] = feature.Value
+		if feature.Type == "Toggle" then
+			Toggles[id] = feature
+			RawToggles[id] = feature.Value
+		end
+	end
+	if feature.Instance then
+		Lib.ByInstance[feature.Instance] = feature
+	end
+	return feature
+end
+
+function FeatureMeta:Get()
+	return self.Value
+end
+
+function FeatureMeta:Set(value)
+	if self._setter then
+		self._setter(value)
+	else
+		fireFeature(self, value)
+	end
+	return self
+end
+
+function FeatureMeta:OnChanged(callback)
+	if type(callback) == "function" then
+		table.insert(self._listeners, callback)
+	end
+	return callback
+end
+
+FeatureMeta.AddListener = FeatureMeta.OnChanged
+FeatureMeta.Changed = FeatureMeta.OnChanged
+
+function FeatureMeta:SetVisible(value)
+	if self.Instance then
+		Lib:SetVisible(self.Instance, value)
+	end
+end
+
+function FeatureMeta:SetDisabled(value)
+	if self.Instance then
+		Lib:SetDisabled(self.Instance, value)
+	end
+end
+
+function FeatureMeta:GetState()
+	return self.Value
+end
+
+function FeatureMeta:Destroy()
+	if self.Instance and self.Instance.Parent then
+		self.Instance:Destroy()
+	end
+	if self.Id then
+		Lib.Registry[self.Id] = nil
+		RawOptions[self.Id] = nil
+		RawToggles[self.Id] = nil
+	end
+end
+
+local function createCard(host, title, description)
+	if not host then
+		return nil
+	end
+	local card = make("Frame", {
+		Name = "Card",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = Theme.SurfaceAlt,
+		BackgroundTransparency = 0.45,
+		BorderSizePixel = 0,
+		LayoutOrder = nextLayoutOrder(host)
+	}, host)
+	corner(card, 10)
+	stroke(card, Theme.Stroke, 0.45)
+	make("UIListLayout", {
+		Padding = UDim.new(0, 6),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Left,
+		VerticalAlignment = Enum.VerticalAlignment.Top
+	}, card)
+	make("UIPadding", {
+		PaddingTop = UDim.new(0, 10),
+		PaddingBottom = UDim.new(0, 10),
+		PaddingLeft = UDim.new(0, 10),
+		PaddingRight = UDim.new(0, 10)
+	}, card)
+	if title ~= nil and tostring(title) ~= "" then
+		make("TextLabel", {
+			Name = "CardTitle",
+			Size = UDim2.new(1, 0, 0, 18),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = tostring(title),
+			Font = Enum.Font.GothamBold,
+			TextSize = 12,
+			TextColor3 = Theme.AccentSoft,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			LayoutOrder = 0
+		}, card)
+	end
+	if description ~= nil and tostring(description) ~= "" then
+		make("TextLabel", {
+			Name = "CardDescription",
+			Size = UDim2.new(1, 0, 0, 14),
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = tostring(description),
+			Font = Enum.Font.Gotham,
+			TextSize = 10,
+			TextColor3 = Theme.TextDim,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			LayoutOrder = 0
+		}, card)
+	end
+	return card
+end
+
+local function createGroup(host, card, title, description, tab, parentHost)
+	return setmetatable({
+		Host = host,
+		Card = card,
+		Title = title,
+		Description = description,
+		Tab = tab,
+		Page = tab and tab.Page or nil,
+		ParentHost = parentHost,
+		_deps = nil
+	}, GroupMeta)
+end
+
+function GroupMeta:Toggle(first, second)
+	local config = readConfig(first, second)
+	local label = config.Title or "Toggle"
+	local default = config.Default == true
+	local feature = createFeature("Toggle", config.Index, default)
+	local icon = nil
+	if config.Icon then
+		local resolved = Lib:GetCustomIcon(config.Icon)
+		if resolved and resolved.Url then
+			icon = resolved.Url
+		end
+	end
+	local instance = Lib:CreateToggle(self.Host, {
+		Text = label,
+		Description = config.Desc or config.Description,
+		Default = default,
+		Icon = icon,
+		Callback = function(value)
+			fireFeature(feature, value)
+			safeCall(config.Callback, value)
+		end
+	})
+	feature.Instance = instance
+	feature._setter = function(value)
+		Lib:SetValue(instance, value == true)
+	end
+	registerFeature(feature)
+	if config.Disabled then
+		Lib:SetDisabled(instance, true)
+	end
+	return feature
+end
+
+function GroupMeta:Slider(first, second)
+	local config = readConfig(first, second)
+	local label = config.Title or "Slider"
+	local minimum = tonumber(config.Min or config.Minimum) or 0
+	local maximum = tonumber(config.Max or config.Maximum) or 100
+	if maximum <= minimum then
+		maximum = minimum + 1
+	end
+	local rounding = tonumber(config.Rounding) or 0
+	local default = roundTo(tonumber(config.Default) or minimum, rounding)
+	local feature = createFeature("Slider", config.Index, default)
+	local instance = Lib:CreateSlider(self.Host, label, minimum, maximum, default, function(value)
+		local result = roundTo(value, rounding)
+		fireFeature(feature, result)
+		safeCall(config.Callback, result)
+	end)
+	feature.Instance = instance
+	feature._setter = function(value)
+		local clamped = math.clamp(tonumber(value) or minimum, minimum, maximum)
+		Lib:SetValue(instance, roundTo(clamped, rounding))
+	end
+	registerFeature(feature)
+	return feature
+end
+
+function GroupMeta:Dropdown(first, second)
+	local config = readConfig(first, second)
+	local label = config.Title or "Dropdown"
+	local values = normalizeList(config.Values or config.Options or config.List)
+	local multi = config.Multi == true
+	local default = config.Default
+	if multi then
+		if type(default) ~= "table" then
+			default = {}
+		end
+	elseif default == nil then
+		default = values[1]
+	end
+	local feature = createFeature(multi and "MultiDropdown" or "Dropdown", config.Index, default)
+	local instance = Lib:CreateDropdown(self.Host, {
+		Text = label,
+		Values = values,
+		Default = default,
+		Multi = multi,
+		Searchable = config.Searchable == true,
+		Callback = function(value)
+			fireFeature(feature, value)
+			safeCall(config.Callback, value)
+		end
+	})
+	feature.Instance = instance
+	feature._setter = function(value)
+		Lib:SetValue(instance, value)
+	end
+	feature.SetValues = function(_, list)
+		values = normalizeList(list)
+		if instance.SetOptions then
+			instance:SetOptions(values)
+		end
+	end
+	feature.GetValues = function()
+		return values
+	end
+	registerFeature(feature)
+	return feature
+end
+
+function GroupMeta:Input(first, second)
+	local config = readConfig(first, second)
+	local label = config.Title or "Input"
+	local default = config.Value or config.Default or ""
+	local placeholder = config.Placeholder or config.PlaceHolder or "Digite"
+	local feature = createFeature("Input", config.Index, tostring(default))
+	local instance = Lib:CreateTextBox(self.Host, label, placeholder, tostring(default), function(value)
+		fireFeature(feature, value)
+		safeCall(config.Callback, value)
+	end)
+	feature.Instance = instance
+	feature._setter = function(value)
+		Lib:SetValue(instance, tostring(value or ""))
+	end
+	registerFeature(feature)
+	return feature
+end
+
+function GroupMeta:Keybind(first, second)
+	local config = readConfig(first, second)
+	local label = config.Title or "Keybind"
+	local defaultKey = config.Default or config.Value or "RightShift"
+	if type(defaultKey) == "string" then
+		defaultKey = Enum.KeyCode[defaultKey] or Enum.KeyCode.RightShift
+	end
+	if typeof(defaultKey) ~= "EnumItem" then
+		defaultKey = Enum.KeyCode.RightShift
+	end
+	local mode = tostring(config.Mode or "Toggle")
+	local feature = createFeature("Keybind", config.Index, defaultKey)
+	feature.Mode = mode
+	local function onPress(key)
+		if mode == "Hold" then
+			safeCall(config.Callback, true, key)
+		elseif mode ~= "Always" then
+			safeCall(config.Callback, key)
+		end
+	end
+	local instance = Lib:CreateKeybind(self.Host, label, defaultKey, onPress)
+	instance:GetAttributeChangedSignal("MikuKeybind"):Connect(function()
+		local name = instance:GetAttribute("MikuKeybind")
+		local key = name and Enum.KeyCode[name]
+		if key then
+			feature.Value = key
+			if feature.Id then
+				RawOptions[feature.Id] = key
+			end
+			safeCall(config.ChangedCallback, key)
+		end
+	end)
+	if mode == "Hold" then
+		UserInputService.InputEnded:Connect(function(input)
+			if input.KeyCode == feature.Value then
+				safeCall(config.Callback, false)
+			end
+		end)
+	elseif mode == "Always" then
+		local held = false
+		UserInputService.InputBegan:Connect(function(input, processed)
+			if processed or UserInputService:GetFocusedTextBox() then
+				return
+			end
+			if input.KeyCode == feature.Value then
+				held = true
+			end
+		end)
+		UserInputService.InputEnded:Connect(function(input)
+			if input.KeyCode == feature.Value then
+				held = false
+			end
+		end)
+		RunService.RenderStepped:Connect(function()
+			if held then
+				safeCall(config.Callback, feature.Value)
+			end
+		end)
+	end
+	feature.Instance = instance
+	feature._setter = function(value)
+		if type(value) == "string" then
+			value = Enum.KeyCode[value]
+		end
+		if typeof(value) == "EnumItem" and value.EnumType == Enum.KeyCode then
+			Lib:SetValue(instance, value)
+			feature.Value = value
+		end
+	end
+	registerFeature(feature)
+	return feature
+end
+
+function GroupMeta:ColorPicker(first, second)
+	local config = readConfig(first, second)
+	local label = config.Title or "Color"
+	local default = typeof(config.Default) == "Color3" and config.Default or Theme.Accent
+	local feature = createFeature("ColorPicker", config.Index, default)
+	local instance = Lib:CreateColorPicker(self.Host, label, default, function(color)
+		fireFeature(feature, color)
+		safeCall(config.Callback, color)
+	end)
+	feature.Instance = instance
+	feature._setter = function(value)
+		if typeof(value) == "Color3" then
+			Lib:SetValue(instance, value)
+		end
+	end
+	registerFeature(feature)
+	return feature
+end
+
+function GroupMeta:Button(first, second)
+	local config = type(first) == "table" and first or (type(second) == "table" and second or {})
+	local label = config.Title or config.Text or (type(first) == "string" and first) or "Botão"
+	local callback = config.Callback or config.Func
+	if not callback then
+		if type(first) == "function" then
+			callback = first
+		elseif type(second) == "function" then
+			callback = second
+		end
+	end
+	return Lib:CreateButton(self.Host, label, callback)
+end
+
+function GroupMeta:Label(first, second)
+	local config = type(first) == "table" and first or (type(second) == "table" and second or {})
+	local text = config.Title or config.Text or (type(first) == "string" and first) or ""
+	return Lib:CreateLabel(self.Host, text)
+end
+
+function GroupMeta:Divider()
+	return Lib:CreateDivider(self.Host)
+end
+
+function GroupMeta:Section(first, second)
+	local config = type(first) == "table" and first or {}
+	local text = config.Title or config.Text or (type(first) == "string" and first) or ""
+	return Lib:CreateSection(self.Host, text)
+end
+
+local function matches(current, required)
+	if required == nil then
+		if type(current) == "table" then
+			return #current > 0
+		end
+		return current ~= nil and current ~= false and current ~= ""
+	end
+	if current == required then
+		return true
+	end
+	if type(current) == "table" then
+		for _, value in ipairs(current) do
+			if value == required then
+				return true
+			end
+		end
+		return false
+	end
+	return tostring(current) == tostring(required)
+end
+
+function GroupMeta:EvaluateDependencies()
+	if not self._deps then
+		return
+	end
+	local visible = true
+	for _, dependency in ipairs(self._deps) do
+		if not matches(dependency.Feature.Value, dependency.Required) then
+			visible = false
+			break
+		end
+	end
+	if self.Card then
+		self.Card.Visible = visible
+	end
+	refreshPage(self.Page)
+end
+
+local function resolveFeature(target)
+	if type(target) == "table" then
+		if getmetatable(target) == FeatureMeta then
+			return target
+		end
+		if target.Value ~= nil then
+			return target
+		end
+		return nil
+	end
+	if typeof(target) == "Instance" then
+		return Lib.ByInstance[target]
+	end
+	if type(target) == "string" then
+		return Lib.Registry[target] or Options[target]
+	end
+	for id, value in pairs(RawOptions) do
+		if value == target then
+			return Lib.Registry[id]
+		end
+	end
+	for id, value in pairs(RawOptions) do
+		if tostring(value) == tostring(target) then
+			return Lib.Registry[id]
+		end
+	end
+	return nil
+end
+
+function GroupMeta:SetupDependencies(list)
+	self._deps = {}
+	for _, entry in ipairs(list or {}) do
+		local feature = resolveFeature(entry[1])
+		if feature then
+			table.insert(self._deps, {
+				Feature = feature,
+				Required = entry[2]
+			})
+			local reference = self
+			feature:OnChanged(function()
+				reference:EvaluateDependencies()
+			end)
+		end
+	end
+	self:EvaluateDependencies()
+	return self
+end
+
+function GroupMeta:AddDependencyBox()
+	local parentHost = self.ParentHost or self.Host
+	local card = createCard(parentHost, nil, nil)
+	card.Name = "DependencyBox"
+	card.Visible = false
+	local dependency = createGroup(card, card, "", nil, self.Tab, parentHost)
+	dependency._deps = {}
+	return dependency
+end
+
+function TabMeta:GetColumns()
+	if self._columns then
+		return self._columns
+	end
+	local row = make("Frame", {
+		Name = "Columns",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		LayoutOrder = nextLayoutOrder(self.Holder)
+	}, self.Holder)
+	make("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		Padding = UDim.new(0, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Left,
+		VerticalAlignment = Enum.VerticalAlignment.Top
+	}, row)
+	local function makeStack(name, order)
+		local stack = make("Frame", {
+			Name = name,
+			Size = UDim2.new(0.5, -4, 0, 0),
+			AutomaticSize = Enum.AutomaticSize.Y,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			LayoutOrder = order
+		}, row)
+		make("UIListLayout", {
+			Padding = UDim.new(0, 8),
+			SortOrder = Enum.SortOrder.LayoutOrder
+		}, stack)
+		return stack
+	end
+	self._columns = {
+		Row = row,
+		Left = makeStack("Left", 1),
+		Right = makeStack("Right", 2)
+	}
+	return self._columns
+end
+
+function TabMeta:Group(first, second)
+	local config = type(first) == "table" and first or { Title = tostring(first or "Group") }
+	if type(first) == "table" and type(second) == "table" then
+		for key, value in pairs(second) do
+			config[key] = value
+		end
+	end
+	local title = config.Title or config.Text or config.Name or "Group"
+	local card = createCard(self.Holder, title, config.Desc or config.Description)
+	return createGroup(card, card, title, config.Desc or config.Description, self, self.Holder)
+end
+
+function TabMeta:_ColumnGroup(side, title)
+	local columns = self:GetColumns()
+	local host = side == "Right" and columns.Right or columns.Left
+	local label = tostring(title or (side .. " Group"))
+	local card = createCard(host, label, nil)
+	return createGroup(card, card, label, nil, self, host)
+end
+
+function TabMeta:AddLeftGroupbox(title)
+	return self:_ColumnGroup("Left", type(title) == "table" and (title.Title or title.Text) or title)
+end
+
+function TabMeta:AddRightGroupbox(title)
+	return self:_ColumnGroup("Right", type(title) == "table" and (title.Title or title.Text) or title)
+end
+
+function TabMeta:Section(config)
+	return self:Group(config)
+end
+
+function TabMeta:Select()
+	if self.Window then
+		self.Window:SelectTab(self)
+	end
+end
+
+local rawCreateTab = Window.CreateTab
+local rawSelectTab = Window.SelectTab
+local rawCreateWindow = Lib.CreateWindow
+local rawNotify = Lib.Notify
+local rawSetValue = Lib.SetValue
+local rawGetValue = Lib.GetValue
+
+function Window:CreateTab(name, iconName)
+	local displayName = name
+	if type(name) == "table" then
+		displayName = name.Name or name.Title or name.Text
+	end
+	local page, button = rawCreateTab(self, name, iconName)
+	if not page then
+		return nil
+	end
+	self._tabObjects = self._tabObjects or {}
+	local tab = setmetatable({
+		Page = page,
+		Holder = page:FindFirstChild("Holder"),
+		Button = button,
+		Name = tostring(displayName or "Tab"),
+		Window = self
+	}, TabMeta)
+	table.insert(self._tabObjects, tab)
+	return tab
+end
+
+function Window:Tab(config)
+	return self:CreateTab(config)
+end
+
+function Window:AddTab(config)
+	return self:CreateTab(config)
+end
+
+function Window:SelectTab(target)
+	if type(target) == "table" and target.Page then
+		target = target.Page
+	end
+	return rawSelectTab(self, target)
+end
+
+function Window:SetToggleKey(key)
+	if type(key) == "string" then
+		key = Enum.KeyCode[key]
+	end
+	self:SetKeybind(key)
+end
+
+function Window:Dialog(config)
+	return Lib:Dialog(config)
+end
+
+function Lib:CreateWindow(config)
+	config = type(config) == "table" and config or {}
+	local normalized = {}
+	for key, value in pairs(config) do
+		normalized[key] = value
+	end
+	normalized.Subtitle = normalized.Subtitle or normalized.SubTitle
+	if normalized.Theme then
+		pcall(function()
+			self:SetTheme(normalized.Theme)
+		end)
+	end
+	if type(normalized.Keybind) == "string" then
+		normalized.Keybind = Enum.KeyCode[normalized.Keybind]
+	end
+	return rawCreateWindow(self, normalized)
+end
+
+function Lib:Notify(first, second, third)
+	if type(first) == "table" then
+		local config = first
+		local title = config.Title or config.title or "MikuLib"
+		local text = config.Description or config.description or config.Text or config.text or config.Content or second or ""
+		local duration = config.Time or config.Duration or config.duration or third or 4
+		return rawNotify(self, title, text, duration)
+	end
+	return rawNotify(self, first, second, third)
+end
+
+function Lib:SetValue(control, value)
+	if type(control) == "table" and getmetatable(control) == FeatureMeta then
+		control:Set(value)
+		return
+	end
+	return rawSetValue(self, control, value)
+end
+
+function Lib:GetValue(control)
+	if type(control) == "table" and getmetatable(control) == FeatureMeta then
+		return control.Value
+	end
+	return rawGetValue(self, control)
+end
+
+local creators = {
+	"CreateSection", "CreateLabel", "CreateDivider", "CreateButton", "CreateToggle",
+	"CreateCheckbox", "CreateSlider", "CreateTextBox", "CreateDropdown", "CreateKeybind",
+	"CreateColorPicker", "CreateIcon", "CreateIconButton"
+}
+
+for _, name in ipairs(creators) do
+	local original = Lib[name]
+	if type(original) == "function" then
+		Lib[name] = function(self, parent, ...)
+			if type(parent) == "table" and (parent.Holder or parent.Page) then
+				parent = parent.Holder or parent.Page
+			end
+			return original(self, parent, ...)
+		end
+	end
+end
+
+Lib.Themes.Dark = {
+	Bg = Color3.fromRGB(12, 12, 16),
+	Surface = Color3.fromRGB(20, 20, 26),
+	SurfaceAlt = Color3.fromRGB(30, 30, 38),
+	SurfaceHi = Color3.fromRGB(42, 42, 52),
+	Stroke = Color3.fromRGB(55, 55, 70),
+	Accent = Color3.fromRGB(139, 108, 255),
+	AccentSoft = Color3.fromRGB(180, 160, 255),
+	Text = Color3.fromRGB(245, 245, 252),
+	TextDim = Color3.fromRGB(145, 145, 165)
+}
+
+Lib.Themes.Light = {
+	Bg = Color3.fromRGB(240, 240, 245),
+	Surface = Color3.fromRGB(250, 250, 253),
+	SurfaceAlt = Color3.fromRGB(230, 230, 238),
+	SurfaceHi = Color3.fromRGB(214, 214, 226),
+	Stroke = Color3.fromRGB(198, 198, 212),
+	Accent = Color3.fromRGB(110, 86, 220),
+	AccentSoft = Color3.fromRGB(88, 66, 198),
+	Text = Color3.fromRGB(28, 28, 36),
+	TextDim = Color3.fromRGB(110, 110, 128)
+}
+
+Lib.Themes.Blood = {
+	Bg = Color3.fromRGB(14, 10, 12),
+	Surface = Color3.fromRGB(22, 15, 18),
+	SurfaceAlt = Color3.fromRGB(34, 22, 26),
+	SurfaceHi = Color3.fromRGB(48, 30, 36),
+	Stroke = Color3.fromRGB(70, 40, 48),
+	Accent = Color3.fromRGB(220, 45, 45),
+	AccentSoft = Color3.fromRGB(255, 120, 120),
+	Text = Color3.fromRGB(248, 238, 240),
+	TextDim = Color3.fromRGB(160, 130, 136)
+}
+
+Lib.Themes.Grape = {
+	Bg = Color3.fromRGB(14, 10, 20),
+	Surface = Color3.fromRGB(20, 15, 30),
+	SurfaceAlt = Color3.fromRGB(30, 22, 44),
+	SurfaceHi = Color3.fromRGB(42, 32, 60),
+	Stroke = Color3.fromRGB(62, 48, 86),
+	Accent = Color3.fromRGB(168, 92, 255),
+	AccentSoft = Color3.fromRGB(210, 170, 255),
+	Text = Color3.fromRGB(244, 240, 252),
+	TextDim = Color3.fromRGB(150, 136, 172)
+}
+
+Lib.Themes.Ocean = {
+	Bg = Color3.fromRGB(8, 14, 20),
+	Surface = Color3.fromRGB(14, 22, 30),
+	SurfaceAlt = Color3.fromRGB(20, 32, 44),
+	SurfaceHi = Color3.fromRGB(28, 44, 60),
+	Stroke = Color3.fromRGB(40, 62, 84),
+	Accent = Color3.fromRGB(64, 168, 255),
+	AccentSoft = Color3.fromRGB(150, 210, 255),
+	Text = Color3.fromRGB(236, 244, 252),
+	TextDim = Color3.fromRGB(128, 152, 176)
+}
+
+Lib.Themes.Mint = {
+	Bg = Color3.fromRGB(8, 18, 16),
+	Surface = Color3.fromRGB(14, 26, 24),
+	SurfaceAlt = Color3.fromRGB(20, 38, 34),
+	SurfaceHi = Color3.fromRGB(28, 52, 46),
+	Stroke = Color3.fromRGB(40, 74, 66),
+	Accent = Color3.fromRGB(64, 226, 168),
+	AccentSoft = Color3.fromRGB(150, 246, 210),
+	Text = Color3.fromRGB(236, 252, 246),
+	TextDim = Color3.fromRGB(128, 168, 156)
+}
+
+Lib.Themes.Amethyst = {
+	Bg = Color3.fromRGB(12, 10, 18),
+	Surface = Color3.fromRGB(18, 16, 26),
+	SurfaceAlt = Color3.fromRGB(26, 22, 38),
+	SurfaceHi = Color3.fromRGB(36, 30, 52),
+	Stroke = Color3.fromRGB(54, 46, 74),
+	Accent = Color3.fromRGB(190, 130, 255),
+	AccentSoft = Color3.fromRGB(220, 186, 255),
+	Text = Color3.fromRGB(244, 240, 252),
+	TextDim = Color3.fromRGB(148, 138, 168)
+}
+
+Lib.Themes.Grey = {
+	Bg = Color3.fromRGB(18, 18, 20),
+	Surface = Color3.fromRGB(26, 26, 30),
+	SurfaceAlt = Color3.fromRGB(34, 34, 38),
+	SurfaceHi = Color3.fromRGB(46, 46, 52),
+	Stroke = Color3.fromRGB(62, 62, 70),
+	Accent = Color3.fromRGB(160, 160, 170),
+	AccentSoft = Color3.fromRGB(200, 200, 210),
+	Text = Color3.fromRGB(242, 242, 246),
+	TextDim = Color3.fromRGB(140, 140, 150)
+}
+
+function Lib:SetTheme(value)
+	if type(value) == "table" then
+		for key, color in pairs(value) do
+			if typeof(color) == "Color3" and Theme[key] ~= nil then
+				Theme[key] = color
+			end
+		end
+		return Theme
+	end
+	local palette = Lib.Themes[tostring(value or "Dark")]
+	if palette then
+		for key, color in pairs(palette) do
+			if Theme[key] ~= nil then
+				Theme[key] = color
+			end
+		end
+	end
+	return Theme
+end
+
+function Lib:Dialog(config)
+	config = type(config) == "table" and config or {}
+	local gui = make("ScreenGui", {
+		Name = "MikuDialog",
+		DisplayOrder = 10002,
+		IgnoreGuiInset = true,
+		ResetOnSpawn = false,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	}, PlayerGui)
+	local overlay = make("TextButton", {
+		Name = "Overlay",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BackgroundTransparency = 0.45,
+		BorderSizePixel = 0,
+		Text = "",
+		AutoButtonColor = false
+	}, gui)
+	local panel = make("Frame", {
+		Name = "Panel",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromOffset(360, 150),
+		BackgroundColor3 = Theme.Surface,
+		BorderSizePixel = 0
+	}, overlay)
+	corner(panel, 12)
+	stroke(panel, Theme.Stroke, 0.3)
+	make("TextLabel", {
+		Name = "Title",
+		Position = UDim2.fromOffset(16, 12),
+		Size = UDim2.new(1, -32, 0, 20),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Text = tostring(config.Title or "Aviso"),
+		Font = Enum.Font.GothamBold,
+		TextSize = 14,
+		TextColor3 = Theme.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd
+	}, panel)
+	make("TextLabel", {
+		Name = "Description",
+		Position = UDim2.fromOffset(16, 38),
+		Size = UDim2.new(1, -32, 0, 50),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Text = tostring(config.Description or config.Text or ""),
+		Font = Enum.Font.Gotham,
+		TextSize = 12,
+		TextColor3 = Theme.TextDim,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		TextWrapped = true
+	}, panel)
+	local buttons = config.Buttons or { { Title = "OK" } }
+	local row = make("Frame", {
+		Name = "Buttons",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -16, 1, -12),
+		Size = UDim2.new(0, #buttons * 96, 0, 30),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0
+	}, panel)
+	make("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalAlignment = Enum.HorizontalAlignment.Right,
+		Padding = UDim.new(0, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder
+	}, row)
+	local api = { Gui = gui, Panel = panel }
+	function api:Close()
+		if gui.Parent then
+			gui:Destroy()
+		end
+	end
+	function api:Open()
+		if not gui.Parent then
+			gui.Parent = PlayerGui
+		end
+	end
+	for index, button in ipairs(buttons) do
+		local text = type(button) == "table" and tostring(button.Title or button.Text or "OK") or tostring(button)
+		local callback = type(button) == "table" and (button.Callback or button.Func) or nil
+		local element = make("TextButton", {
+			Name = "Button" .. index,
+			Size = UDim2.fromOffset(88, 30),
+			BackgroundColor3 = Theme.SurfaceHi,
+			BorderSizePixel = 0,
+			Text = text,
+			Font = Enum.Font.GothamMedium,
+			TextSize = 12,
+			TextColor3 = Theme.Text,
+			AutoButtonColor = false,
+			LayoutOrder = index
+		}, row)
+		corner(element, 8)
+		stroke(element, Theme.Stroke, 0.4)
+		element.MouseEnter:Connect(function()
+			TweenService:Create(element, Fast, {
+				BackgroundColor3 = Theme.Accent
+			}):Play()
+		end)
+		element.MouseLeave:Connect(function()
+			TweenService:Create(element, Fast, {
+				BackgroundColor3 = Theme.SurfaceHi
+			}):Play()
+		end)
+		element.MouseButton1Click:Connect(function()
+			safeCall(callback)
+			api:Close()
+		end)
+	end
+	return api
+end
+
+Lib.CreateDialog = Lib.Dialog
+
+function Lib:SaveConfig(name)
+	name = tostring(name or "default")
+	local data = {}
+	for id, feature in pairs(Lib.Registry) do
+		local value = feature.Value
+		if typeof(value) == "EnumItem" then
+			value = value.Name
+		elseif typeof(value) == "Color3" then
+			value = { value.R, value.G, value.B }
+		end
+		data[id] = value
+	end
+	local ok, encoded = pcall(function()
+		return HttpService:JSONEncode(data)
+	end)
+	if not ok or type(writefile) ~= "function" then
+		return false
+	end
+	return pcall(writefile, "MikuLib_" .. name .. ".json", encoded)
+end
+
+function Lib:LoadConfig(name)
+	name = tostring(name or "default")
+	local file = "MikuLib_" .. name .. ".json"
+	if type(isfile) ~= "function" or not isfile(file) then
+		return false
+	end
+	local ok, content = pcall(readfile, file)
+	if not ok or not content then
+		return false
+	end
+	local decoded
+	local parsed = pcall(function()
+		decoded = HttpService:JSONDecode(content)
+	end)
+	if not parsed or type(decoded) ~= "table" then
+		return false
+	end
+	for id, value in pairs(decoded) do
+		local feature = Lib.Registry[id]
+		if feature then
+			if feature.Type == "Keybind" and type(value) == "string" then
+				value = Enum.KeyCode[value]
+			elseif feature.Type == "ColorPicker" and type(value) == "table" then
+				value = Color3.new(value[1], value[2], value[3])
+			end
+			if value ~= nil then
+				feature:Set(value)
+			end
+		end
+	end
+	return true
+end
+
+function Lib.Unload()
+	Lib:DestroyAll()
+end
+
+GroupMeta.AddToggle = GroupMeta.Toggle
+GroupMeta.AddCheckbox = GroupMeta.Toggle
+GroupMeta.AddSlider = GroupMeta.Slider
+GroupMeta.AddDropdown = GroupMeta.Dropdown
+GroupMeta.AddInput = GroupMeta.Input
+GroupMeta.AddTextbox = GroupMeta.Input
+GroupMeta.AddTextBox = GroupMeta.Input
+GroupMeta.AddKeybind = GroupMeta.Keybind
+GroupMeta.AddKeyPicker = GroupMeta.Keybind
+GroupMeta.AddButton = GroupMeta.Button
+GroupMeta.AddLabel = GroupMeta.Label
+GroupMeta.AddDivider = GroupMeta.Divider
+GroupMeta.AddSection = GroupMeta.Section
+GroupMeta.AddColorPicker = GroupMeta.ColorPicker
+GroupMeta.AddColorpicker = GroupMeta.ColorPicker
+GroupMeta.Checkbox = GroupMeta.Toggle
+GroupMeta.Textbox = GroupMeta.Input
+GroupMeta.TextBox = GroupMeta.Input
+GroupMeta.KeyPicker = GroupMeta.Keybind
+GroupMeta.Colorpicker = GroupMeta.ColorPicker
+GroupMeta.Paragraph = GroupMeta.Label
+GroupMeta.Row = GroupMeta.Group
+
+TabMeta.AddGroupbox = TabMeta.Group
+TabMeta.Groupbox = TabMeta.Group
+TabMeta.LeftGroup = TabMeta.AddLeftGroupbox
+TabMeta.RightGroup = TabMeta.AddRightGroupbox
+TabMeta.AddSection = TabMeta.Section
+
+local environment
+if type(getgenv) == "function" then
+	local ok, value = pcall(getgenv)
+	if ok and type(value) == "table" then
+		environment = value
+	end
+end
+if type(environment) ~= "table" then
+	environment = _G
+end
+if type(environment) == "table" then
+	environment.Library = Lib
+	environment.Obsidian = Lib
+	environment.MikuLib = Lib
+	environment.Options = Options
+	environment.Toggles = Toggles
+	environment.options = RawOptions
+	environment.toggles = RawToggles
+end
+
+Lib.Library = Lib
+
+return Lib
