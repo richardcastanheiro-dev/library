@@ -2097,7 +2097,6 @@ end
 
 Lib._watermarks = Lib._watermarks or {}
 
-f
 function Lib:CreateWatermark(config)
     if type(config) ~= "table" then
         config = { Text = tostring(config or "MikuLib") }
