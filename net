@@ -670,26 +670,26 @@ local function createDropdown(parent, text, options, default, callback)
 		populate()
 	end
 end
-	function Window:SetProfile(profile)
+	function window:SetProfile(profile)
     if self._destroyed then
         return
     end
 
     profile = type(profile) == "table" and profile or {}
 
-    if profile.Hidden ~= nil then
+    if profile.Hidden ~= nil and self._profileCard then
         self._profileCard.Visible = not profile.Hidden
     end
 
-    if profile.Name ~= nil then
+    if profile.Name ~= nil and self._profileName then
         self._profileName.Text = tostring(profile.Name)
     end
 
-    if profile.Tag ~= nil then
+    if profile.Tag ~= nil and self._profileTag then
         self._profileTag.Text = tostring(profile.Tag)
     end
 
-    if profile.Image ~= nil then
+    if profile.Image ~= nil and self._avatar then
         self._avatar.Image = tostring(profile.Image)
     end
 end
