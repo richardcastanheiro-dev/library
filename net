@@ -75,21 +75,22 @@ local function stroke(parent, color, transparency)
 end
 
 local function getViewport()
-	local camera = workspace.CurrentCamera
-	if camera then
-		return camera.ViewportSize
-	end
-	return Vector2.new(1280, 720)
+    local camera = workspace.CurrentCamera
+    if camera then
+        return camera.ViewportSize
+    end
+    return Vector2.new(1280, 720)
 end
 
 local function safeCall(callback, ...)
-	if type(callback) ~= "function" then
-		return
-	end
-	local ok, err = pcall(callback, ...)
-	if not ok then
-		warn("[MikuLib] " .. tostring(err))
-	end
+    if type(callback) ~= "function" then
+        return
+    end
+
+    local ok, err = pcall(callback, ...)
+    if not ok then
+        warn("[MikuLib] " .. tostring(err))
+    end
 end
 
 local function getShared(create)
