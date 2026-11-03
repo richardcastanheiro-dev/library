@@ -131,42 +131,28 @@ local function getPageFrom(object)
 end
 
 local function updateCanvas(page)
-	if not page or not page.Parent then
-		return
-	end
-	local holder = page:FindFirstChild("Holder")
-	local layout = holder and holder:FindFirstChildOfClass("UIListLayout")
-	local contentHeight = layout and layout.AbsoluteContentSize.Y or 0
-	local height = math.max(contentHeight + 32, page.AbsoluteSize.Y)
-	page.CanvasSize = UDim2.fromOffset(0, height)
+    if not page or not page.Parent then
+        return
+    end
+
+    local holder = page:FindFirstChild("Holder")
+    local layout = holder and (
+        holder:FindFirstChildOfClass("UIGridLayout")
+        or holder:FindFirstChildOfClass("UIListLayout")
+    )
+
+    local contentHeight = layout and layout.AbsoluteContentSize.Y or 0
+    local height = math.max(contentHeight + 32, page.AbsoluteSize.Y)
+
+    page.CanvasSize = UDim2.fromOffset(0, height)
 end
 
 local function refreshPage(page)
-	if not page then
-		return
-	end
-	local function updateCanvas(page)
-    if not page or not page.Parent then return end
+    if not page then
+        return
+    end
 
-    local holder = page:FindFirstChild("Holder")
-    local layout = holder and holder:FindFirstChildOfClass("UIGridLayout")
-
-    local height = layout and layout.AbsoluteContentSize.Y or 0
-
-    page.CanvasSize = UDim2.fromOffset(
-        0,
-        math.max(height + 32, page.AbsoluteSize.Y)
-    )
-end
-
-local function resolveHost(parent)
-	if not parent then
-		return nil
-	end
-	if parent:IsA("ScrollingFrame") then
-		return parent:FindFirstChild("Holder") or parent
-	end
-	return parent
+    updateCanvas(page)
 end
 
 local function nextLayoutOrder(host)
@@ -884,7 +870,7 @@ function Window:CreateTab(name, iconName)
 	}, self._content)
 	page:SetAttribute("MikuPage", true)
 
-	local holder = make("Frame", {
+local holder = make("Frame", {
     Name = "Holder",
     Position = UDim2.fromOffset(18, 16),
     Size = UDim2.new(1, -36, 0, 0),
@@ -892,8 +878,6 @@ function Window:CreateTab(name, iconName)
     BackgroundTransparency = 1,
     BorderSizePixel = 0
 }, page)
-holder.Size = UDim2.new(1, -36, 0, 0)
-holder.AutomaticSize = Enum.AutomaticSize.Y
 
 make("UIGridLayout", {
     CellSize = UDim2.new(0.5, -5, 0, 100),
@@ -994,15 +978,6 @@ end
 function entry:GetPage()
     return self.Page
 end
-	table.insert(self._tabs, entry)
-
-	if self._tabLayout and self._tabList then
-		task.defer(function()
-			if self._tabList and self._tabList.Parent then
-				self._tabList.CanvasSize = UDim2.fromOffset(0, self._tabLayout.AbsoluteContentSize.Y + 8)
-			end
-		end)
-	end
 
 	tabButton.MouseEnter:Connect(function()
 		if not entry.Active then
@@ -1025,8 +1000,8 @@ end
 	if not self._activeTab then
 		self:SelectTab(entry)
 	end
-	refreshPage(page)
-	return page, tabButton
+refreshPage(page)
+return entry, page, tabButton
 end
 
 function Window:Notify(title, text, duration)
