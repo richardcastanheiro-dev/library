@@ -155,7 +155,17 @@ local function refreshPage(page)
     updateCanvas(page)
 end
 
+local function resolveHost(parent)
+    if not parent then
+        return nil
+    end
+    return parent
+end
+
 local function nextLayoutOrder(host)
+	if not host then
+		return 0
+	end
 	local order = (host:GetAttribute("MikuLayoutOrder") or 0) + 1
 	host:SetAttribute("MikuLayoutOrder", order)
 	return order
@@ -583,10 +593,6 @@ function Window:SetProfile(profile)
 
     profile = type(profile) == "table" and profile or {}
 
-    if self._profileCard then
-        self._profileCard.Visible = false
-    end
-
     if self._profileName and profile.Name ~= nil then
         self._profileName.Text = tostring(profile.Name)
     end
@@ -599,6 +605,7 @@ function Window:SetProfile(profile)
         self._avatar.Image = tostring(profile.Image)
     end
 end
+
 function Window:SelectTab(target)
 	local entry
 	if type(target) == "table" and target.Button and target.Page then
@@ -643,7 +650,6 @@ end
 function Window:GetActiveTab()
 	return self._activeTab
 end
-
 
 local Groupbox = {}
 Groupbox.__index = Groupbox
@@ -846,7 +852,6 @@ function Groupbox:Destroy()
     refreshPage(self.Tab.Page)
 end
 
-
 function Window:CreateTab(name, iconName)
 	if self._destroyed then
 		return
@@ -884,7 +889,7 @@ local holder = make("Frame", {
 }, page)
 
 make("UIGridLayout", {
-    CellSize = UDim2.new(0.5, -5, 0, 100),
+    CellSize = UDim2.new(0.5, -5, 0, 0),
     CellPadding = UDim2.fromOffset(10, 10),
     SortOrder = Enum.SortOrder.LayoutOrder,
     FillDirection = Enum.FillDirection.Horizontal,
@@ -1000,6 +1005,8 @@ end
 			self:SelectTab(entry)
 		end
 	end)
+
+	table.insert(self._tabs, entry)
 
 	if not self._activeTab then
 		self:SelectTab(entry)
@@ -1202,7 +1209,7 @@ function Lib:CreateWindow(config)
 	local titleLabel = make("TextLabel", {
 		Name = "Title",
 		Position = UDim2.fromOffset(18, 8),
-		Size = UDim2.new(1, -120, 0, 20),
+		Size = UDim2.new(1, -310, 0, 20),
 		BackgroundTransparency = 1,
 		Text = "MikuLib",
 		Font = Enum.Font.GothamBold,
@@ -1217,7 +1224,7 @@ function Lib:CreateWindow(config)
 	local subtitleLabel = make("TextLabel", {
 		Name = "Subtitle",
 		Position = UDim2.fromOffset(18, 29),
-		Size = UDim2.new(1, -120, 0, 14),
+		Size = UDim2.new(1, -310, 0, 14),
 		BackgroundTransparency = 1,
 		Text = "v" .. Lib.Version,
 		Font = Enum.Font.GothamMedium,
@@ -1344,10 +1351,22 @@ end)
 self._tabList = tabList
 self._tabLayout = tabLayout
 
+	local profileCard = make("Frame", {
+		Name = "ProfileCard",
+		Position = UDim2.new(1, -280, 0, 4),
+		Size = UDim2.fromOffset(200, 47),
+		BackgroundColor3 = Theme.SurfaceAlt,
+		BackgroundTransparency = 0.55,
+		BorderSizePixel = 0,
+		Visible = true
+	}, topBar)
+	corner(profileCard, 8)
+	self._profileCard = profileCard
+
 	local avatar = make("ImageLabel", {
 		Name = "Avatar",
-		Position = UDim2.fromOffset(9, 9),
-		Size = UDim2.fromOffset(40, 40),
+		Position = UDim2.fromOffset(5, 5),
+		Size = UDim2.fromOffset(36, 36),
 		BackgroundColor3 = Theme.SurfaceHi,
 		BackgroundTransparency = 0,
 		BorderSizePixel = 0,
@@ -1356,14 +1375,14 @@ self._tabLayout = tabLayout
 		ScaleType = Enum.ScaleType.Crop,
 		ClipsDescendants = true
 	}, profileCard)
-	corner(avatar, 20)
+	corner(avatar, 18)
 	stroke(avatar, Theme.Stroke, 0.5)
 	self._avatar = avatar
 
 	local profileName = make("TextLabel", {
 		Name = "Name",
-		Position = UDim2.fromOffset(58, 11),
-		Size = UDim2.new(1, -68, 0, 18),
+		Position = UDim2.fromOffset(48, 8),
+		Size = UDim2.new(1, -54, 0, 16),
 		BackgroundTransparency = 1,
 		Text = LocalPlayer.DisplayName or LocalPlayer.Name,
 		Font = Enum.Font.GothamBold,
@@ -1377,8 +1396,8 @@ self._tabLayout = tabLayout
 
 	local profileTag = make("TextLabel", {
 		Name = "Tag",
-		Position = UDim2.fromOffset(58, 29),
-		Size = UDim2.new(1, -68, 0, 16),
+		Position = UDim2.fromOffset(48, 25),
+		Size = UDim2.new(1, -54, 0, 14),
 		BackgroundTransparency = 1,
 		Text = "@" .. LocalPlayer.Name,
 		Font = Enum.Font.GothamMedium,
@@ -2213,9 +2232,7 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 			Size = UDim2.new(1, 0, 0, height)
 		}):Play()
 
-		TweenService:Create(arrow, Fast, {
-			Rotation = opened and 180 or 0
-		}):Play()
+		arrow.Text = opened and "⌃" or "⌄"
 
 		if not opened then
 			task.delay(0.21, function()
