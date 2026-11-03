@@ -632,14 +632,9 @@ function Window:SelectTab(target)
 		item.Page.Visible = active
 		item.Indicator.Visible = active
 		item.Label.TextColor3 = active and Theme.Text or Theme.TextDim
-		item.Label.Font = active and Enum.Font.GothamBold or Enum.Font.GothamMedium
-		item.Button.BackgroundColor3 = active and Theme.Accent or Theme.SurfaceAlt
-		item.Button.BackgroundTransparency = active and 0.82 or 0.55
-		local itemStroke = item.Button:FindFirstChildOfClass("UIStroke")
-		if itemStroke then
-			itemStroke.Color = active and Theme.Accent or Theme.Stroke
-			itemStroke.Transparency = active and 0.35 or 0.45
-		end
+		item.Label.Font = active and Enum.Font.GothamSemibold or Enum.Font.GothamMedium
+		item.Button.BackgroundColor3 = active and Theme.SurfaceHi or Theme.SurfaceAlt
+		item.Button.BackgroundTransparency = active and 0.05 or 1
 		local tabIcon = item.Button:FindFirstChild("TabIcon")
 		if tabIcon then
 			tabIcon.ImageColor3 = active and Theme.AccentSoft or Theme.TextDim
@@ -697,20 +692,19 @@ function Window:CreateTab(name, iconName)
 
 	local tabButton = make("TextButton", {
 		Name = name .. "Tab",
-		Size = UDim2.new(1, 0, 0, 42),
+		Size = UDim2.new(1, 0, 0, 36),
 		BackgroundColor3 = Theme.SurfaceAlt,
-		BackgroundTransparency = 0.55,
+		BackgroundTransparency = 1,
 		AutoButtonColor = false,
 		Text = "",
 		BorderSizePixel = 0
 	}, self._tabList)
-	corner(tabButton, 9)
-	stroke(tabButton, Theme.Stroke, 0.45)
+	corner(tabButton, 6)
 
 	local indicator = make("Frame", {
 		Name = "Indicator",
-		Size = UDim2.fromOffset(3, 20),
-		Position = UDim2.fromOffset(0, 11),
+		Size = UDim2.fromOffset(3, 18),
+		Position = UDim2.fromOffset(0, 9),
 		BackgroundColor3 = Theme.Accent,
 		BorderSizePixel = 0,
 		Visible = false
@@ -719,8 +713,8 @@ function Window:CreateTab(name, iconName)
 
 	local label = make("TextLabel", {
 		Name = "Label",
-		Position = UDim2.fromOffset(20, 0),
-		Size = UDim2.new(1, -28, 1, 0),
+		Position = UDim2.fromOffset(12, 0),
+		Size = UDim2.new(1, -20, 1, 0),
 		BackgroundTransparency = 1,
 		Text = name,
 		Font = Enum.Font.GothamMedium,
@@ -737,8 +731,8 @@ function Window:CreateTab(name, iconName)
 			make("ImageLabel", {
 				Name = "TabIcon",
 				AnchorPoint = Vector2.new(0, 0.5),
-				Position = UDim2.new(0, 10, 0.5, 0),
-				Size = UDim2.fromOffset(18, 18),
+				Position = UDim2.new(0, 9, 0.5, 0),
+				Size = UDim2.fromOffset(16, 16),
 				BackgroundTransparency = 1,
 				ScaleType = Enum.ScaleType.Fit,
 				Image = icon.Url or "",
@@ -747,8 +741,8 @@ function Window:CreateTab(name, iconName)
 				ImageRectSize = icon.ImageRectSize or Vector2.zero
 			}, tabButton)
 
-			label.Position = UDim2.fromOffset(36, 0)
-			label.Size = UDim2.new(1, -42, 1, 0)
+			label.Position = UDim2.fromOffset(31, 0)
+			label.Size = UDim2.new(1, -37, 1, 0)
 		end
 	end
 
@@ -773,13 +767,13 @@ function Window:CreateTab(name, iconName)
 	tabButton.MouseEnter:Connect(function()
 		if not entry.Active then
 			tabButton.BackgroundColor3 = Theme.SurfaceHi
-			tabButton.BackgroundTransparency = 0.42
+			tabButton.BackgroundTransparency = 0.55
 		end
 	end)
 	tabButton.MouseLeave:Connect(function()
 		if not entry.Active then
 			tabButton.BackgroundColor3 = Theme.SurfaceAlt
-			tabButton.BackgroundTransparency = 0.55
+			tabButton.BackgroundTransparency = 1
 		end
 	end)
 	tabButton.MouseButton1Click:Connect(function()
@@ -1125,7 +1119,7 @@ function Lib:CreateWindow(config)
 	}, sidebar)
 
 	local tabLayout = make("UIListLayout", {
-		Padding = UDim.new(0, 8),
+		Padding = UDim.new(0, 4),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		HorizontalAlignment = Enum.HorizontalAlignment.Left,
 		VerticalAlignment = Enum.VerticalAlignment.Top
