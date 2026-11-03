@@ -669,23 +669,30 @@ local function createDropdown(parent, text, options, default, callback)
 		populate()
 	end
 end
-	if self._destroyed then
-		return
-	end
-	profile = type(profile) == "table" and profile or {}
-	if profile.Hidden ~= nil then
-		self._profileCard.Visible = not profile.Hidden
-	end
-	if profile.Name ~= nil then
-		self._profileName.Text = tostring(profile.Name)
-	end
-	if profile.Tag ~= nil then
-		self._profileTag.Text = tostring(profile.Tag)
-	end
-	if profile.Image ~= nil then
-		self._avatar.Image = tostring(profile.Image)
-	end
+	function Window:SetProfile(profile)
+    if self._destroyed then
+        return
+    end
+
+    profile = type(profile) == "table" and profile or {}
+
+    if profile.Hidden ~= nil then
+        self._profileCard.Visible = not profile.Hidden
+    end
+
+    if profile.Name ~= nil then
+        self._profileName.Text = tostring(profile.Name)
+    end
+
+    if profile.Tag ~= nil then
+        self._profileTag.Text = tostring(profile.Tag)
+    end
+
+    if profile.Image ~= nil then
+        self._avatar.Image = tostring(profile.Image)
+    end
 end
+
 
 function Window:SelectTab(target)
 	if type(target) == "table" and target._mikuPage then
