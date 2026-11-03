@@ -199,42 +199,29 @@ local function registerControl(instance, setters)
 end
 
 function Lib:GetIcon(name)
-	if not self.Icons or type(name) ~= "string" then
-		return nil
-	end
-	local success, icon = pcall(function()
-		return self.Icons.GetAsset(name)
-	end)
-	if success then
-		return icon
-	end
-	return nil
-end
+    if not self.Icons or type(name) ~= "string" then
+        return nil
+    end
 
-function Lib:GetCustomIcon(value)
-	if value == nil then
-		return nil
-	end
-	if type(value) == "number" or tonumber(value) then
-		value = "rbxassetid://" .. tostring(value)
-	end
-	value = tostring(value)
-	if value:match("^rbxasset") or value:match("^https?://") then
-		return {
-			Url = value,
-			ImageRectOffset = Vector2.zero,
-			ImageRectSize = Vector2.zero,
-			Custom = true
-		}
-	end
-	return self:GetIcon(value)
-end
+    local success, icon = pcall(function()
+        return self.Icons.GetAsset(name)
+    end)
 
-function Lib:GetIconNames()
-	if not self.Icons or type(self.Icons.Icons) ~= "table" then
-		return {}
-	end
-	return self.Icons.Icons
+    if not success or type(icon) ~= "table" then
+        return nil
+    end
+
+    local url = icon.Url or icon.url or icon.Image or icon.ImageUrl
+
+    if not url then
+        return nil
+    end
+
+    return {
+        Url = url,
+        ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
+        ImageRectSize = icon.ImageRectSize or Vector2.zero
+    }
 end
 
 function Lib.newDraggable(target, handle, isLocked)
