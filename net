@@ -1303,85 +1303,63 @@ function Lib:SetDisabled(control, disabled)
 end
 
 function Lib:CreateSection(parent, text)
-	local config = type(text) == "table" and text or { name = text }
+    local config = type(text) == "table" and text or {
+        name = text
+    }
 
-	local name = config.name or config.Name or "Seção"
-	local iconName = config.icon or config.Icon
+    local name = config.name or config.Name or "Seção"
+    local iconName = config.icon or config.Icon
 
-	local section, page = prepareControl(parent, 26, "Frame")
+    local section, page = prepareControl(parent, 26, "Frame")
 
-	local offset = 0
-	local sectionHeight = 26
-	local iconSize = 16
+    local offset = 0
 
-	if iconName then
-		local icon = Lib:GetCustomIcon(iconName)
-		if icon then
-			local iconPos = UDim2.fromOffset(0, math.floor((sectionHeight - iconSize) / 2))
+    if iconName then
+        local icon = Lib:GetCustomIcon(iconName)
 
-			if icon.FontFace and icon.Text then
-				-- Ícones do tipo fonte (Lucide)
-				make("TextLabel", {
-					Name = "SectionIcon",
-					Position = iconPos,
-					Size = UDim2.fromOffset(iconSize, iconSize),
-					BackgroundTransparency = 1,
-					BorderSizePixel = 0,
-					FontFace = icon.FontFace,
-					Text = icon.Text,
-					TextColor3 = Theme.AccentSoft,
-					TextSize = iconSize,
-					TextXAlignment = Enum.TextXAlignment.Center,
-					TextYAlignment = Enum.TextYAlignment.Center,
-					Visible = true
-				}, section)
-				offset = iconSize + 8
-			elseif icon.Url then
-				-- Ícones do tipo imagem (custom id / url)
-				make("ImageLabel", {
-					Name = "SectionIcon",
-					Position = iconPos,
-					Size = UDim2.fromOffset(iconSize, iconSize),
-					BackgroundTransparency = 1,
-					BorderSizePixel = 0,
-					Image = icon.Url,
-					ImageColor3 = Theme.AccentSoft,
-					ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
-					ImageRectSize = icon.ImageRectSize or Vector2.zero,
-					ScaleType = Enum.ScaleType.Fit,
-					Visible = true
-				}, section)
-				offset = iconSize + 8
-			end
-		end
-	end
+        if icon and icon.Url then
+            make("ImageLabel", {
+                Name = "SectionIcon",
+                Position = UDim2.fromOffset(0, 3),
+                Size = UDim2.fromOffset(18, 18),
+                BackgroundTransparency = 1,
+                Image = icon.Url,
+                ImageColor3 = Theme.AccentSoft,
+                ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
+                ImageRectSize = icon.ImageRectSize or Vector2.zero,
+                ScaleType = Enum.ScaleType.Fit,
+                Visible = true
+            }, section)
 
-	make("TextLabel", {
-		Name = "Title",
-		Position = UDim2.fromOffset(offset, 0),
-		Size = UDim2.new(1, -offset, 1, 0),
-		BackgroundTransparency = 1,
-		Text = tostring(name),
-		Font = Enum.Font.GothamBold,
-		TextSize = 13,
-		TextColor3 = Theme.AccentSoft,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Center,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		BorderSizePixel = 0
-	}, section)
+            offset = 24
+        end
+    end
 
-	make("Frame", {
-		Name = "Line",
-		Position = UDim2.new(0, 0, 1, -1),
-		Size = UDim2.new(1, 0, 0, 1),
-		BackgroundColor3 = Theme.Stroke,
-		BackgroundTransparency = 0.25,
-		BorderSizePixel = 0
-	}, section)
+    make("TextLabel", {
+        Name = "Title",
+        Position = UDim2.fromOffset(offset, 0),
+        Size = UDim2.new(1, -offset, 0, 24),
+        BackgroundTransparency = 1,
+        Text = tostring(name),
+        Font = Enum.Font.GothamBold,
+        TextSize = 13,
+        TextColor3 = Theme.AccentSoft,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        BorderSizePixel = 0
+    }, section)
 
-	refreshPage(page)
-	return section
+    make("Frame", {
+        Name = "Line",
+        Position = UDim2.new(0, 0, 1, -1),
+        Size = UDim2.new(1, 0, 0, 1),
+        BackgroundColor3 = Theme.Stroke,
+        BackgroundTransparency = 0.25,
+        BorderSizePixel = 0
+    }, section)
+
+    refreshPage(page)
+    return section
 end
 
 function Lib:CreateLabel(parent, text)
