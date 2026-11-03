@@ -224,6 +224,32 @@ function Lib:GetIcon(name)
     }
 end
 
+function Lib:GetCustomIcon(value)
+	if value == nil then
+		return nil
+	end
+	if type(value) == "number" or tonumber(value) then
+		value = "rbxassetid://" .. tostring(value)
+	end
+	value = tostring(value)
+	if value:match("^rbxasset") or value:match("^https?://") then
+		return {
+			Url = value,
+			ImageRectOffset = Vector2.zero,
+			ImageRectSize = Vector2.zero,
+			Custom = true
+		}
+	end
+	return self:GetIcon(value)
+end
+
+function Lib:GetIconNames()
+	if not self.Icons or type(self.Icons.Icons) ~= "table" then
+		return {}
+	end
+	return self.Icons.Icons
+end
+
 function Lib.newDraggable(target, handle, isLocked)
 	local dragging = false
 	local startMouse
@@ -640,209 +666,6 @@ function Window:GetActiveTab()
 	return self._activeTab
 end
 
-
-local function getGroupboxColumns(window, page)
-	window._groupboxColumns = window._groupboxColumns or {}
-
-	local existing = window._groupboxColumns[page]
-	if existing and existing.Parent then
-		return existing
-	end
-
-	local holder = page:FindFirstChild("Holder")
-	if not holder then
-		return nil
-	end
-
-	local columns = make("Frame", {
-		Name = "GroupboxColumns",
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		LayoutOrder = nextLayoutOrder(holder)
-	}, holder)
-
-	make("UIListLayout", {
-		FillDirection = Enum.FillDirection.Horizontal,
-		HorizontalAlignment = Enum.HorizontalAlignment.Left,
-		VerticalAlignment = Enum.VerticalAlignment.Top,
-		Padding = UDim.new(0, 12),
-		SortOrder = Enum.SortOrder.LayoutOrder
-	}, columns)
-
-	local left = make("Frame", {
-		Name = "LeftColumn",
-		Size = UDim2.new(0.5, -6, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0
-	}, columns)
-
-	local right = make("Frame", {
-		Name = "RightColumn",
-		Size = UDim2.new(0.5, -6, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0
-	}, columns)
-
-	for _, column in ipairs({left, right}) do
-		make("UIListLayout", {
-			FillDirection = Enum.FillDirection.Vertical,
-			HorizontalAlignment = Enum.HorizontalAlignment.Left,
-			VerticalAlignment = Enum.VerticalAlignment.Top,
-			Padding = UDim.new(0, 10),
-			SortOrder = Enum.SortOrder.LayoutOrder
-		}, column)
-	end
-
-	window._groupboxColumns[page] = {
-		Left = left,
-		Right = right,
-		Container = columns
-	}
-
-	return window._groupboxColumns[page]
-end
-
-function Window:_CreateGroupbox(name, side)
-	if self._destroyed or not self._activeTab then
-		return nil
-	end
-
-	local page = self._activeTab
-	local columns = getGroupboxColumns(self, page)
-	if not columns then
-		return nil
-	end
-
-	local parent = side == "Right" and columns.Right or columns.Left
-
-	local groupbox = make("Frame", {
-		Name = tostring(name or "Groupbox"),
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundColor3 = Theme.Surface,
-		BackgroundTransparency = 0.15,
-		BorderSizePixel = 0,
-		LayoutOrder = nextLayoutOrder(parent)
-	}, parent)
-
-	corner(groupbox, 10)
-	stroke(groupbox, Theme.Stroke, 0.4)
-
-	make("TextLabel", {
-		Name = "Title",
-		Position = UDim2.fromOffset(12, 8),
-		Size = UDim2.new(1, -24, 0, 22),
-		BackgroundTransparency = 1,
-		Text = tostring(name or "Groupbox"),
-		Font = Enum.Font.GothamBold,
-		TextSize = 13,
-		TextColor3 = Theme.AccentSoft,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		BorderSizePixel = 0
-	}, groupbox)
-
-	local content = make("Frame", {
-		Name = "Content",
-		Position = UDim2.fromOffset(12, 36),
-		Size = UDim2.new(1, -24, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0
-	}, groupbox)
-
-	make("UIListLayout", {
-		FillDirection = Enum.FillDirection.Vertical,
-		HorizontalAlignment = Enum.HorizontalAlignment.Left,
-		VerticalAlignment = Enum.VerticalAlignment.Top,
-		Padding = UDim.new(0, 5),
-		SortOrder = Enum.SortOrder.LayoutOrder
-	}, content)
-
-	make("UIPadding", {
-		PaddingBottom = UDim.new(0, 10)
-	}, content)
-
-	local api = {
-		Frame = groupbox,
-		Content = content
-	}
-
-	function api:AddButton(text, callback)
-		return Lib:CreateButton(content, text, callback)
-	end
-
-	function api:AddToggle(text, default, callback)
-		return Lib:CreateToggle(content, text, default, callback)
-	end
-
-	function api:AddSlider(text, min, max, default, callback)
-		return Lib:CreateSlider(content, text, min, max, default, callback)
-	end
-
-	function api:AddDropdown(text, options, default, callback)
-		return Lib:CreateDropdown(content, text, options, default, callback)
-	end
-
-	function api:AddLabel(text)
-		return Lib:CreateLabel(content, text)
-	end
-
-	function api:AddDivider()
-		return Lib:CreateDivider(content)
-	end
-
-	function api:AddKeybind(text, default, callback)
-		return Lib:CreateKeybind(content, text, default, callback)
-	end
-
-	function api:AddTextbox(text, placeholder, default, callback)
-		return Lib:CreateTextBox(content, text, placeholder, default, callback)
-	end
-
-	function api:AddTextBox(text, placeholder, default, callback)
-		return Lib:CreateTextBox(content, text, placeholder, default, callback)
-	end
-
-	function api:AddColorPicker(text, default, callback)
-		return Lib:CreateColorPicker(content, text, default, callback)
-	end
-
-	function api:AddCheckbox(text, default, callback)
-		return Lib:CreateCheckbox(content, text, default, callback)
-	end
-
-	function api:AddSection(text)
-		return Lib:CreateSection(content, text)
-	end
-
-	function api:AddIcon(icon, size, callback)
-		return Lib:CreateIcon(content, icon, size, callback)
-	end
-
-	function api:Destroy()
-		if groupbox and groupbox.Parent then
-			groupbox:Destroy()
-			refreshPage(page)
-		end
-	end
-
-	refreshPage(page)
-	return api
-end
-
-function Window:AddLeftGroupbox(name, iconName)
-    return self:_CreateGroupbox(nil, name, "left", iconName)
-end
-
-function Window:AddRightGroupbox(name, iconName)
-    return self:_CreateGroupbox(nil, name, "right", iconName)
-end
-
-
 function Window:CreateTab(name, iconName)
 	if self._destroyed then
 		return
@@ -921,26 +744,26 @@ function Window:CreateTab(name, iconName)
 		BorderSizePixel = 0
 	}, tabButton)
 
-if iconName then
-    local icon = Lib:GetCustomIcon(iconName)
+	if iconName then
+		local icon = Lib:GetCustomIcon(iconName)
+		if icon then
+			make("ImageLabel", {
+				Name = "TabIcon",
+				AnchorPoint = Vector2.new(0, 0.5),
+				Position = UDim2.new(0, 10, 0.5, 0),
+				Size = UDim2.fromOffset(18, 18),
+				BackgroundTransparency = 1,
+				ScaleType = Enum.ScaleType.Fit,
+				Image = icon.Url or "",
+				ImageColor3 = Theme.TextDim,
+				ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
+				ImageRectSize = icon.ImageRectSize or Vector2.zero
+			}, tabButton)
 
-    if icon then
-        make("ImageLabel", {
-            Name = "SectionIcon",
-            AnchorPoint = Vector2.new(0, 0.5),
-            Position = UDim2.new(0, 0, 0.5, 0),
-            Size = UDim2.fromOffset(16, 16),
-            BackgroundTransparency = 1,
-            ScaleType = Enum.ScaleType.Fit,
-            Image = icon.Url or "",
-            ImageColor3 = Theme.TextDim,
-            ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
-            ImageRectSize = icon.ImageRectSize or Vector2.zero
-        }, section)
-
-        offset = 23
-    end
-end
+			label.Position = UDim2.fromOffset(36, 0)
+			label.Size = UDim2.new(1, -42, 1, 0)
+		end
+	end
 
 	local entry = {
 		Name = name,
@@ -983,210 +806,6 @@ end
 	end
 	refreshPage(page)
 	return page, tabButton
-end
-
-local Groupbox = {}
-Groupbox.__index = Groupbox
-
-function Window:_CreateGroupbox(parent, name, side, iconName)
-	local page = parent or self._activeTab
-	if not page then
-		return
-	end
-
-	local holder = page:FindFirstChild("Holder")
-	if not holder then
-		return
-	end
-
-	local columns = page:FindFirstChild("GroupboxColumns")
-
-	if not columns then
-		columns = make("Frame", {
-			Name = "GroupboxColumns",
-			Position = UDim2.fromOffset(0, 0),
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			BackgroundTransparency = 1,
-			BorderSizePixel = 0
-		}, holder)
-
-		make("UIListLayout", {
-			FillDirection = Enum.FillDirection.Horizontal,
-			HorizontalAlignment = Enum.HorizontalAlignment.Left,
-			VerticalAlignment = Enum.VerticalAlignment.Top,
-			Padding = UDim.new(0, 12),
-			SortOrder = Enum.SortOrder.LayoutOrder
-		}, columns)
-
-		local left = make("Frame", {
-			Name = "Left",
-			Size = UDim2.new(0.5, -6, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			BackgroundTransparency = 1,
-			BorderSizePixel = 0,
-			LayoutOrder = 1
-		}, columns)
-
-		local right = make("Frame", {
-			Name = "Right",
-			Size = UDim2.new(0.5, -6, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			BackgroundTransparency = 1,
-			BorderSizePixel = 0,
-			LayoutOrder = 2
-		}, columns)
-
-		for _, column in ipairs({left, right}) do
-			make("UIListLayout", {
-				Padding = UDim.new(0, 10),
-				SortOrder = Enum.SortOrder.LayoutOrder
-			}, column)
-		end
-	end
-
-	local column = columns:FindFirstChild(side == "right" and "Right" or "Left")
-	if not column then
-		return
-	end
-
-	local frame = make("Frame", {
-		Name = tostring(name or "Groupbox"),
-		Size = UDim2.new(1, 0, 0, 40),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundColor3 = Theme.Surface,
-		BorderSizePixel = 0,
-		LayoutOrder = nextLayoutOrder(column)
-	}, column)
-
-	corner(frame, 9)
-	stroke(frame, Theme.Stroke, 0.35)
-
-local title = make("TextLabel", {
-    Name = "Title",
-    Position = UDim2.fromOffset(iconName and 34 or 12, 8),
-    Size = UDim2.new(1, iconName and -46 or -24, 0, 22),
-    BackgroundTransparency = 1,
-    Text = tostring(name or "Groupbox"),
-    Font = Enum.Font.GothamBold,
-    TextSize = 13,
-    TextColor3 = Theme.AccentSoft,
-    TextXAlignment = Enum.TextXAlignment.Left
-}, frame)
-
-if iconName then
-    local icon = Lib:GetCustomIcon(iconName)
-
-    if icon then
-        make("ImageLabel", {
-            Name = "GroupboxIcon",
-            Position = UDim2.fromOffset(12, 11),
-            Size = UDim2.fromOffset(16, 16),
-            BackgroundTransparency = 1,
-            Image = icon.Url or "",
-            ImageColor3 = Theme.AccentSoft,
-            ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
-            ImageRectSize = icon.ImageRectSize or Vector2.zero,
-            ScaleType = Enum.ScaleType.Fit
-        }, frame)
-    end
-end
-	local content = make("Frame", {
-		Name = "Content",
-		Position = UDim2.fromOffset(12, 36),
-		Size = UDim2.new(1, -24, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0
-	}, frame)
-
-	make("UIListLayout", {
-		Padding = UDim.new(0, 5),
-		SortOrder = Enum.SortOrder.LayoutOrder
-	}, content)
-
-	local padding = make("UIPadding", {
-		PaddingBottom = UDim.new(0, 10)
-	}, frame)
-
-	local function update()
-		local layout = content:FindFirstChildOfClass("UIListLayout")
-		if layout then
-			content.Size = UDim2.new(1, -24, 0, layout.AbsoluteContentSize.Y)
-			frame.Size = UDim2.new(1, 0, 0, 36 + layout.AbsoluteContentSize.Y + 10)
-			refreshPage(page)
-		end
-	end
-
-	content:FindFirstChildOfClass("UIListLayout"):GetPropertyChangedSignal("AbsoluteContentSize"):Connect(update)
-
-	local api = setmetatable({
-		Frame = frame,
-		Content = content,
-		Title = title
-	}, Groupbox)
-
-	function api:AddButton(text, callback)
-		return Lib:CreateButton(content, text, callback)
-	end
-
-	function api:AddToggle(text, default, callback)
-		return Lib:CreateToggle(content, text, default, callback)
-	end
-
-	function api:AddSlider(text, min, max, default, callback)
-		return Lib:CreateSlider(content, text, min, max, default, callback)
-	end
-
-	function api:AddDropdown(text, options, default, callback)
-		return Lib:CreateDropdown(content, text, options, default, callback)
-	end
-
-	function api:AddLabel(text)
-		return Lib:CreateLabel(content, text)
-	end
-
-	function api:AddDivider()
-		return Lib:CreateDivider(content)
-	end
-
-	function api:AddKeybind(text, default, callback)
-		return Lib:CreateKeybind(content, text, default, callback)
-	end
-
-	function api:AddTextbox(text, placeholder, default, callback)
-		return Lib:CreateTextBox(content, text, placeholder, default, callback)
-	end
-
-	function api:AddColorPicker(text, default, callback)
-		return Lib:CreateColorPicker(content, text, default, callback)
-	end
-
-	function api:AddCheckbox(text, default, callback)
-		return Lib:CreateCheckbox(content, text, default, callback)
-	end
-
-	function api:AddSection(text)
-		return Lib:CreateSection(content, text)
-	end
-
-	function api:Destroy()
-		frame:Destroy()
-		refreshPage(page)
-	end
-
-	update()
-	refreshPage(page)
-
-	return api
-end
-
-function Window:AddLeftGroupbox(name)
-	return self:_CreateGroupbox(nil, name, "left")
-end
-
-function Window:AddRightGroupbox(name)
-	return self:_CreateGroupbox(nil, name, "right")
 end
 
 function Window:Notify(title, text, duration)
@@ -1694,62 +1313,29 @@ function Lib:SetDisabled(control, disabled)
 end
 
 function Lib:CreateSection(parent, text)
-    local config = type(text) == "table" and text or {
-        name = text
-    }
-
-    local name = config.name or config.Name or "Seção"
-    local iconName = config.icon or config.Icon
-
-    local section, page = prepareControl(parent, 26, "Frame")
-
-    local offset = 0
-
-    if iconName then
-        local icon = Lib:GetCustomIcon(iconName)
-
-        if icon then
-            make("ImageLabel", {
-                Name = "SectionIcon",
-                Position = UDim2.fromOffset(0, 4),
-                Size = UDim2.fromOffset(16, 16),
-                BackgroundTransparency = 1,
-                Image = icon.Url or "",
-                ImageColor3 = Theme.AccentSoft,
-                ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
-                ImageRectSize = icon.ImageRectSize or Vector2.zero,
-                ScaleType = Enum.ScaleType.Fit
-            }, section)
-
-            offset = 23
-        end
-    end
-
-    make("TextLabel", {
-        Name = "Title",
-        Position = UDim2.fromOffset(offset, 0),
-        Size = UDim2.new(1, -offset, 0, 24),
-        BackgroundTransparency = 1,
-        Text = tostring(name),
-        Font = Enum.Font.GothamBold,
-        TextSize = 13,
-        TextColor3 = Theme.AccentSoft,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        TextTruncate = Enum.TextTruncate.AtEnd,
-        BorderSizePixel = 0
-    }, section)
-
-    make("Frame", {
-        Name = "Line",
-        Position = UDim2.new(0, 0, 1, -1),
-        Size = UDim2.new(1, 0, 0, 1),
-        BackgroundColor3 = Theme.Stroke,
-        BackgroundTransparency = 0.25,
-        BorderSizePixel = 0
-    }, section)
-
-    refreshPage(page)
-    return section
+	local section, page = prepareControl(parent, 26, "Frame")
+	make("TextLabel", {
+		Name = "Title",
+		Size = UDim2.new(1, 0, 0, 24),
+		BackgroundTransparency = 1,
+		Text = tostring(text or "Seção"),
+		Font = Enum.Font.GothamBold,
+		TextSize = 13,
+		TextColor3 = Theme.AccentSoft,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		BorderSizePixel = 0
+	}, section)
+	make("Frame", {
+		Name = "Line",
+		Position = UDim2.new(0, 0, 1, -1),
+		Size = UDim2.new(1, 0, 0, 1),
+		BackgroundColor3 = Theme.Stroke,
+		BackgroundTransparency = 0.25,
+		BorderSizePixel = 0
+	}, section)
+	refreshPage(page)
+	return section
 end
 
 function Lib:CreateLabel(parent, text)
