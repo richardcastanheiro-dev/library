@@ -278,62 +278,267 @@ function Library:CreateWindow(config)
     table.insert(self.Connections, inputConnection)
 
     function self:CreateTab(name, icon)
-        local page = Create("ScrollingFrame", {
-            Name = tostring(name),
-            Size = UDim2.new(1, -20, 1, -20),
-            Position = UDim2.fromOffset(10, 10),
-            BackgroundTransparency = 1,
-            BorderSizePixel = 0,
-            ScrollBarThickness = 3,
-            ScrollBarImageColor3 = Theme.Accent,
-            CanvasSize = UDim2.new(),
-            Visible = false
-        }, content)
+    local page = Create("ScrollingFrame", {
+        Name = tostring(name),
+        Size = UDim2.new(1, -20, 1, -20),
+        Position = UDim2.fromOffset(10, 10),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 3,
+        ScrollBarImageColor3 = Theme.Accent,
+        CanvasSize = UDim2.new(),
+        Visible = false
+    }, content)
 
-        local layout = Create("UIListLayout", {
-            Padding = UDim.new(0, 9),
-            SortOrder = Enum.SortOrder.LayoutOrder
+    local layout = Create("UIListLayout", {
+        Padding = UDim.new(0, 9),
+        SortOrder = Enum.SortOrder.LayoutOrder
+    }, page)
+
+    Padding(page, 2)
+
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        page.CanvasSize = UDim2.fromOffset(0, layout.AbsoluteContentSize.Y + 15)
+    end)
+
+    local tabButton = Create("TextButton", {
+        Name = tostring(name) .. "Tab",
+        Size = UDim2.new(1, 0, 0, 42),
+        BackgroundColor3 = Theme.Secondary,
+        BackgroundTransparency = 0.55,
+        Text = "",
+        AutoButtonColor = false,
+        BorderSizePixel = 0
+    }, tabList)
+
+    Corner(tabButton, 9)
+
+    local indicator = Create("Frame", {
+        Name = "Indicator",
+        Size = UDim2.fromOffset(3, 20),
+        Position = UDim2.fromOffset(0, 11),
+        BackgroundColor3 = Theme.Accent,
+        BorderSizePixel = 0,
+        Visible = false
+    }, tabButton)
+
+    Corner(indicator, 2)
+
+    local tabText = Text(tabButton, name, 14, Theme.Muted, false)
+    tabText.Position = UDim2.fromOffset(20, 0)
+    tabText.Size = UDim2.new(1, -28, 1, 0)
+
+    local tab = {
+        Page = page,
+        Button = tabButton,
+        Label = tabText,
+        Indicator = indicator,
+        Name = name,
+        Active = false
+    }
+
+    local function Select()
+        for _, other in ipairs(self.Tabs) do
+            local active = other == tab
+
+            other.Active = active
+            other.Page.Visible = active
+            other.Indicator.Visible = active
+
+            TweenService:Create(other.Button, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+                BackgroundColor3 = active and Theme.Accent or Theme.Secondary,
+                BackgroundTransparency = active and 0.82 or 0.55
+            }):Play()
+
+            TweenService:Create(other.Label, TweenInfo.new(0.18), {
+                TextColor3 = active and Theme.Text or Theme.Muted
+            }):Play()
+
+            other.Label.Font = active and Enum.Font.GothamBold or Enum.Font.GothamMedium
+        end
+
+        self.ActiveTab = tab
+    end
+
+    tab.Select = Select
+
+    tabButton.MouseEnter:Connect(function()
+        if not tab.Active then
+            TweenService:Create(tabButton, TweenInfo.new(0.15), {
+                BackgroundColor3 = Theme.Element,
+                BackgroundTransparency = 0.35
+            }):Play()
+        end
+    end)
+
+    tabButton.MouseLeave:Connect(function()
+        if not tab.Active then
+            TweenService:Create(tabButton, TweenInfo.new(0.15), {
+                BackgroundColor3 = Theme.Secondary,
+                BackgroundTransparency = 0.55
+            }):Play()
+        end
+    end)
+
+    tabButton.MouseButton1Click:Connect(Select)
+
+    function tab:AddGroupbox(groupName)
+        local boxFrame = Create("Frame", {
+            Size = UDim2.new(1, -4, 0, 40),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundColor3 = Theme.Main,
+            BorderSizePixel = 0
         }, page)
 
-        Padding(page, 2)
+        Corner(boxFrame, 7)
+        Stroke(boxFrame)
+        Padding(boxFrame, 10)
 
-        layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            page.CanvasSize = UDim2.fromOffset(0, layout.AbsoluteContentSize.Y + 15)
+        local boxTitle = Text(boxFrame, groupName, 13, Theme.Text, true)
+        boxTitle.Size = UDim2.new(1, 0, 0, 22)
+
+        local holder = Create("Frame", {
+            Position = UDim2.fromOffset(0, 27),
+            Size = UDim2.new(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundTransparency = 1
+        }, boxFrame)
+
+        local holderLayout = Create("UIListLayout", {
+            Padding = UDim.new(0, 7),
+            SortOrder = Enum.SortOrder.LayoutOrder
+        }, holder)
+
+        holderLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            holder.Size = UDim2.new(1, 0, 0, holderLayout.AbsoluteContentSize.Y)
         end)
 
-        local tabButton = Create("TextButton", {
-            Size = UDim2.new(1, 0, 0, 34),
-            BackgroundColor3 = Theme.Secondary,
-            BackgroundTransparency = 1,
-            Text = "",
-            AutoButtonColor = false
-        }, tabList)
-
-        local tabText = Text(tabButton, name, 12, Theme.Muted, true)
-        tabText.Position = UDim2.fromOffset(10, 0)
-        tabText.Size = UDim2.new(1, -18, 1, 0)
-
-        Corner(tabButton, 5)
-
-        local tab = {
-            Page = page,
-            Button = tabButton,
-            Name = name
+        local group = {
+            Frame = boxFrame,
+            Container = holder
         }
 
-        local function Select()
-            for _, other in ipairs(self.Tabs) do
-                other.Page.Visible = false
-                other.Button.BackgroundTransparency = 1
-                other.Label.TextColor3 = Theme.Muted
+        function group:AddButton(config, callback)
+            if type(config) == "table" then
+                callback = config.Callback or config.Func
+                config = config.Text or config.Name
             end
 
-            page.Visible = true
-            tabButton.BackgroundTransparency = 0
-            tabButton.BackgroundColor3 = Theme.Element
-            tabText.TextColor3 = Theme.Text
-            self.ActiveTab = tab
+            local button = Create("TextButton", {
+                Size = UDim2.new(1, 0, 0, 34),
+                BackgroundColor3 = Theme.Element,
+                Text = tostring(config or "Button"),
+                TextColor3 = Theme.Text,
+                TextSize = 12,
+                Font = Enum.Font.GothamMedium,
+                BorderSizePixel = 0,
+                AutoButtonColor = false
+            }, holder)
+
+            Corner(button, 6)
+
+            button.MouseButton1Click:Connect(function()
+                if type(callback) == "function" then
+                    pcall(callback)
+                end
+            end)
+
+            return button
         end
+
+        function group:AddToggle(id, config)
+            config = type(config) == "table" and config or {}
+
+            local row = Create("Frame", {
+                Size = UDim2.new(1, 0, 0, 34),
+                BackgroundTransparency = 1
+            }, holder)
+
+            local label = Text(row, config.Text or tostring(id), 12, Theme.Text, false)
+            label.Size = UDim2.new(1, -55, 1, 0)
+
+            local toggle = Create("TextButton", {
+                Size = UDim2.fromOffset(38, 20),
+                Position = UDim2.new(1, -38, 0.5, -10),
+                BackgroundColor3 = Theme.Element,
+                BorderSizePixel = 0,
+                Text = ""
+            }, row)
+
+            Corner(toggle, 10)
+
+            local circle = Create("Frame", {
+                Size = UDim2.fromOffset(14, 14),
+                Position = UDim2.fromOffset(3, 3),
+                BackgroundColor3 = Theme.Text,
+                BorderSizePixel = 0
+            }, toggle)
+
+            Corner(circle, 10)
+
+            local value = config.Default == true
+
+            local function update(state)
+                value = state == true
+
+                TweenService:Create(toggle, TweenInfo.new(0.15), {
+                    BackgroundColor3 = value and Theme.Accent or Theme.Element
+                }):Play()
+
+                TweenService:Create(circle, TweenInfo.new(0.15), {
+                    Position = value and UDim2.fromOffset(21, 3) or UDim2.fromOffset(3, 3)
+                }):Play()
+
+                if type(config.Callback) == "function" then
+                    pcall(config.Callback, value)
+                end
+            end
+
+            toggle.MouseButton1Click:Connect(function()
+                update(not value)
+            end)
+
+            update(value)
+
+            return {
+                SetValue = update,
+                GetValue = function()
+                    return value
+                end
+            }
+        end
+
+        function group:AddLabel(value)
+            return Text(holder, value, 12, Theme.Text, false)
+        end
+
+        function group:AddDivider()
+            return Create("Frame", {
+                Size = UDim2.new(1, 0, 0, 1),
+                BackgroundColor3 = Theme.Border,
+                BorderSizePixel = 0
+            }, holder)
+        end
+
+        function group:AddLeftGroupbox(groupName)
+            return self:AddGroupbox(groupName)
+        end
+
+        function group:AddRightGroupbox(groupName)
+            return self:AddGroupbox(groupName)
+        end
+
+        return group
+    end
+
+    table.insert(self.Tabs, tab)
+
+    if #self.Tabs == 1 then
+        Select()
+    end
+
+    return page, tabButton
+end
 
         tab.Label = tabText
         tab.Select = Select
