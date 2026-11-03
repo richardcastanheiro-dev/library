@@ -207,21 +207,11 @@ function Lib:GetIcon(name)
         return self.Icons.GetAsset(name)
     end)
 
-    if not success or type(icon) ~= "table" then
-        return nil
+    if success and type(icon) == "table" and icon.Url then
+        return icon
     end
 
-    local url = icon.Url or icon.url or icon.Image or icon.ImageUrl
-
-    if not url then
-        return nil
-    end
-
-    return {
-        Url = url,
-        ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
-        ImageRectSize = icon.ImageRectSize or Vector2.zero
-    }
+    return nil
 end
 
 function Lib:GetCustomIcon(value)
