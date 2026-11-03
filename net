@@ -131,41 +131,44 @@ local function getPageFrom(object)
 end
 
 local function updateCanvas(page)
-    if not page or not page.Parent then
-        return
-    end
-
-    local holder = page:FindFirstChild("Holder")
-    local layout = holder and (
-        holder:FindFirstChildOfClass("UIGridLayout")
-        or holder:FindFirstChildOfClass("UIListLayout")
-    )
-
-    local contentHeight = layout and layout.AbsoluteContentSize.Y or 0
-    local height = math.max(contentHeight + 32, page.AbsoluteSize.Y)
-
-    page.CanvasSize = UDim2.fromOffset(0, height)
+	if not page or not page.Parent then
+		return
+	end
+	local holder = page:FindFirstChild("Holder")
+	local layout = holder and holder:FindFirstChildOfClass("UIListLayout")
+	local contentHeight = layout and layout.AbsoluteContentSize.Y or 0
+	local height = math.max(contentHeight + 32, page.AbsoluteSize.Y)
+	page.CanvasSize = UDim2.fromOffset(0, height)
 end
 
 local function refreshPage(page)
-    if not page then
-        return
-    end
-
-    updateCanvas(page)
+	if not page then
+		return
+	end
+	updateCanvas(page)
+	if page:GetAttribute("MikuCanvasQueued") then
+		return
+	end
+	page:SetAttribute("MikuCanvasQueued", true)
+	task.defer(function()
+		if page and page.Parent then
+			page:SetAttribute("MikuCanvasQueued", false)
+			updateCanvas(page)
+		end
+	end)
 end
 
 local function resolveHost(parent)
-    if not parent then
-        return nil
-    end
-    return parent
+	if not parent then
+		return nil
+	end
+	if parent:IsA("ScrollingFrame") then
+		return parent:FindFirstChild("Holder") or parent
+	end
+	return parent
 end
 
 local function nextLayoutOrder(host)
-	if not host then
-		return 0
-	end
 	local order = (host:GetAttribute("MikuLayoutOrder") or 0) + 1
 	host:SetAttribute("MikuLayoutOrder", order)
 	return order
@@ -587,23 +590,22 @@ function Window:SetSubtitle(subtitle)
 end
 
 function Window:SetProfile(profile)
-    if self._destroyed then
-        return
-    end
-
-    profile = type(profile) == "table" and profile or {}
-
-    if self._profileName and profile.Name ~= nil then
-        self._profileName.Text = tostring(profile.Name)
-    end
-
-    if self._profileTag and profile.Tag ~= nil then
-        self._profileTag.Text = tostring(profile.Tag)
-    end
-
-    if self._avatar and profile.Image ~= nil then
-        self._avatar.Image = tostring(profile.Image)
-    end
+	if self._destroyed then
+		return
+	end
+	profile = type(profile) == "table" and profile or {}
+	if profile.Hidden ~= nil then
+		self._profileCard.Visible = not profile.Hidden
+	end
+	if profile.Name ~= nil then
+		self._profileName.Text = tostring(profile.Name)
+	end
+	if profile.Tag ~= nil then
+		self._profileTag.Text = tostring(profile.Tag)
+	end
+	if profile.Image ~= nil then
+		self._avatar.Image = tostring(profile.Image)
+	end
 end
 
 function Window:SelectTab(target)
@@ -651,207 +653,6 @@ function Window:GetActiveTab()
 	return self._activeTab
 end
 
-local Groupbox = {}
-Groupbox.__index = Groupbox
-
-function Groupbox:AddToggle(id, config)
-    config = type(config) == "table" and config or {}
-    config.Text = config.Text or id
-    return Lib:CreateToggle(self.Content, config)
-end
-
-function Groupbox:AddCheckbox(id, config)
-    config = type(config) == "table" and config or {}
-    return Lib:CreateCheckbox(
-        self.Content,
-        config.Text or id,
-        config.Default,
-        config.Callback
-    )
-end
-
-function Groupbox:AddButton(id, callback)
-    if type(id) == "table" then
-        local config = id
-        id = config.Text or config.Name or "Button"
-        callback = config.Func or config.Callback
-    end
-
-    return Lib:CreateButton(self.Content, id, callback)
-end
-
-function Groupbox:AddLabel(text)
-    return Lib:CreateLabel(self.Content, text)
-end
-
-function Groupbox:AddDivider()
-    return Lib:CreateDivider(self.Content)
-end
-
-function Groupbox:AddSlider(id, config)
-    config = type(config) == "table" and config or {}
-    return Lib:CreateSlider(
-        self.Content,
-        config.Text or id,
-        config.Min or 0,
-        config.Max or 100,
-        config.Default or 0,
-        config.Callback
-    )
-end
-
-function Groupbox:AddDropdown(id, config)
-    config = type(config) == "table" and config or {}
-    return Lib:CreateDropdown(self.Content, {
-        Text = config.Text or id,
-        Values = config.Values or config.Options or {},
-        Default = config.Default,
-        Multi = config.Multi,
-        Searchable = config.Searchable,
-        Callback = config.Callback
-    })
-end
-
-function Groupbox:AddKeyPicker(id, config)
-    config = type(config) == "table" and config or {}
-    return Lib:CreateKeybind(
-        self.Content,
-        config.Text or id,
-        config.Default,
-        config.Callback
-    )
-end
-
-function Groupbox:AddKeybind(id, config)
-    return self:AddKeyPicker(id, config)
-end
-
-function Groupbox:AddColorPicker(id, config)
-    config = type(config) == "table" and config or {}
-    return Lib:CreateColorPicker(
-        self.Content,
-        config.Text or id,
-        config.Default,
-        config.Callback
-    )
-end
-
-function Groupbox:AddInput(id, config)
-    config = type(config) == "table" and config or {}
-    return Lib:CreateTextBox(
-        self.Content,
-        config.Text or id,
-        config.Placeholder or "Digite",
-        config.Default or "",
-        config.Callback
-    )
-end
-
-local function CreateGroupbox(tab, side, name, iconName)
-    local page = tab.Page
-    local holder = page:FindFirstChild("Holder")
-    if not holder then return end
-
-    local box = make("Frame", {
-        Name = tostring(name),
-        BackgroundColor3 = Theme.Surface,
-        BackgroundTransparency = 0,
-        BorderSizePixel = 0,
-        AutomaticSize = Enum.AutomaticSize.Y,
-        Size = UDim2.new(0.5, -5, 0, 0),
-        LayoutOrder = (tab._groupCount or 0) + 1
-    }, holder)
-
-    tab._groupCount = (tab._groupCount or 0) + 1
-
-    corner(box, 9)
-    stroke(box, Theme.Stroke, 0.4)
-
-    local header = make("Frame", {
-        Name = "Header",
-        Size = UDim2.new(1, 0, 0, 38),
-        BackgroundColor3 = Theme.SurfaceAlt,
-        BorderSizePixel = 0
-    }, box)
-
-    corner(header, 9)
-
-    local icon = Lib:GetCustomIcon(iconName)
-
-    local title = make("TextLabel", {
-        Name = "Title",
-        Position = UDim2.fromOffset(icon and 36 or 12, 0),
-        Size = UDim2.new(1, icon and -44 or -20, 1, 0),
-        BackgroundTransparency = 1,
-        Text = tostring(name),
-        Font = Enum.Font.GothamBold,
-        TextSize = 13,
-        TextColor3 = Theme.Text,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        TextTruncate = Enum.TextTruncate.AtEnd
-    }, header)
-
-    if icon then
-        make("ImageLabel", {
-            Name = "Icon",
-            Position = UDim2.fromOffset(11, 10),
-            Size = UDim2.fromOffset(18, 18),
-            BackgroundTransparency = 1,
-            Image = icon.Url or "",
-            ImageColor3 = Theme.AccentSoft,
-            ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
-            ImageRectSize = icon.ImageRectSize or Vector2.zero,
-            ScaleType = Enum.ScaleType.Fit
-        }, header)
-    end
-
-    local content = make("Frame", {
-        Name = "Content",
-        Position = UDim2.fromOffset(10, 46),
-        Size = UDim2.new(1, -20, 0, 0),
-        AutomaticSize = Enum.AutomaticSize.Y,
-        BackgroundTransparency = 1,
-        BorderSizePixel = 0
-    }, box)
-
-    make("UIListLayout", {
-        Padding = UDim.new(0, 5),
-        SortOrder = Enum.SortOrder.LayoutOrder
-    }, content)
-
-    make("UIPadding", {
-        PaddingBottom = UDim.new(0, 10)
-    }, content)
-
-    local api = setmetatable({
-        Frame = box,
-        Content = content,
-        Tab = tab,
-        Side = side,
-        Name = name
-    }, Groupbox)
-
-    refreshPage(page)
-
-    return api
-end
-
-function Groupbox:AddDependencyBox()
-    return self
-end
-
-function Groupbox:SetVisible(value)
-    self.Frame.Visible = value == true
-    refreshPage(self.Tab.Page)
-end
-
-function Groupbox:Destroy()
-    if self.Frame then
-        self.Frame:Destroy()
-    end
-    refreshPage(self.Tab.Page)
-end
-
 function Window:CreateTab(name, iconName)
 	if self._destroyed then
 		return
@@ -879,37 +680,32 @@ function Window:CreateTab(name, iconName)
 	}, self._content)
 	page:SetAttribute("MikuPage", true)
 
-local holder = make("Frame", {
-    Name = "Holder",
-    Position = UDim2.fromOffset(18, 16),
-    Size = UDim2.new(1, -36, 0, 0),
-    AutomaticSize = Enum.AutomaticSize.Y,
-    BackgroundTransparency = 1,
-    BorderSizePixel = 0
-}, page)
+	local holder = make("Frame", {
+		Name = "Holder",
+		Position = UDim2.fromOffset(18, 16),
+		Size = UDim2.new(1, -36, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0
+	}, page)
+	make("UIListLayout", {
+		Padding = UDim.new(0, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Left,
+		VerticalAlignment = Enum.VerticalAlignment.Top
+	}, holder)
 
-make("UIGridLayout", {
-    CellSize = UDim2.new(0.5, -5, 0, 0),
-    CellPadding = UDim2.fromOffset(10, 10),
-    SortOrder = Enum.SortOrder.LayoutOrder,
-    FillDirection = Enum.FillDirection.Horizontal,
-    HorizontalAlignment = Enum.HorizontalAlignment.Left,
-    VerticalAlignment = Enum.VerticalAlignment.Top
-}, holder)
-
-local tabButton = make("TextButton", {
-    Name = name .. "Tab",
-    Size = UDim2.fromOffset(125, 38),
-    BackgroundColor3 = Theme.SurfaceAlt,
-    BackgroundTransparency = 0.55,
-    AutoButtonColor = false,
-    Text = "",
-    BorderSizePixel = 0,
-    LayoutOrder = #self._tabs + 1
-}, self._tabList)
-
-corner(tabButton, 8)
-stroke(tabButton, Theme.Stroke, 0.45)
+	local tabButton = make("TextButton", {
+		Name = name .. "Tab",
+		Size = UDim2.new(1, 0, 0, 42),
+		BackgroundColor3 = Theme.SurfaceAlt,
+		BackgroundTransparency = 0.55,
+		AutoButtonColor = false,
+		Text = "",
+		BorderSizePixel = 0
+	}, self._tabList)
+	corner(tabButton, 9)
+	stroke(tabButton, Theme.Stroke, 0.45)
 
 	local indicator = make("Frame", {
 		Name = "Indicator",
@@ -957,36 +753,22 @@ stroke(tabButton, Theme.Stroke, 0.45)
 	end
 
 	local entry = {
-    Name = name,
-    Button = tabButton,
-    Page = page,
-    Indicator = indicator,
-    Label = label,
-    Active = false
-}
+		Name = name,
+		Button = tabButton,
+		Page = page,
+		Indicator = indicator,
+		Label = label,
+		Active = false
+	}
+	table.insert(self._tabs, entry)
 
-function entry:AddLeftGroupbox(name, icon)
-    return CreateGroupbox(self, "left", name, icon)
-end
-
-function entry:AddRightGroupbox(name, icon)
-    return CreateGroupbox(self, "right", name, icon)
-end
-
-function entry:AddGroupbox(config)
-    config = type(config) == "table" and config or {}
-
-    return CreateGroupbox(
-        self,
-        config.Side or "left",
-        config.Name or "Groupbox",
-        config.IconName or config.Icon
-    )
-end
-
-function entry:GetPage()
-    return self.Page
-end
+	if self._tabLayout and self._tabList then
+		task.defer(function()
+			if self._tabList and self._tabList.Parent then
+				self._tabList.CanvasSize = UDim2.fromOffset(0, self._tabLayout.AbsoluteContentSize.Y + 8)
+			end
+		end)
+	end
 
 	tabButton.MouseEnter:Connect(function()
 		if not entry.Active then
@@ -1006,13 +788,11 @@ end
 		end
 	end)
 
-	table.insert(self._tabs, entry)
-
 	if not self._activeTab then
 		self:SelectTab(entry)
 	end
-refreshPage(page)
-return entry, page, tabButton
+	refreshPage(page)
+	return page, tabButton
 end
 
 function Window:Notify(title, text, duration)
@@ -1209,7 +989,7 @@ function Lib:CreateWindow(config)
 	local titleLabel = make("TextLabel", {
 		Name = "Title",
 		Position = UDim2.fromOffset(18, 8),
-		Size = UDim2.new(1, -310, 0, 20),
+		Size = UDim2.new(1, -120, 0, 20),
 		BackgroundTransparency = 1,
 		Text = "MikuLib",
 		Font = Enum.Font.GothamBold,
@@ -1224,7 +1004,7 @@ function Lib:CreateWindow(config)
 	local subtitleLabel = make("TextLabel", {
 		Name = "Subtitle",
 		Position = UDim2.fromOffset(18, 29),
-		Size = UDim2.new(1, -310, 0, 14),
+		Size = UDim2.new(1, -120, 0, 14),
 		BackgroundTransparency = 1,
 		Text = "v" .. Lib.Version,
 		Font = Enum.Font.GothamMedium,
@@ -1311,62 +1091,74 @@ function Lib:CreateWindow(config)
 	self._dragApi = Lib.newDraggable(wrapper, dragArea, false)
 
 	local sidebar = make("Frame", {
-    Name = "Sidebar",
-    Position = UDim2.new(0, 0, 0, 55),
-    Size = UDim2.new(1, 0, 0, 50),
-    BackgroundColor3 = Theme.Surface,
-    BorderSizePixel = 0
-}, root)
+		Name = "Sidebar",
+		Position = UDim2.new(0, 0, 0, 55),
+		Size = UDim2.new(0, 156, 1, -55),
+		BackgroundColor3 = Theme.Surface,
+		BorderSizePixel = 0
+	}, root)
+	self._sidebar = sidebar
+	make("Frame", {
+		Name = "Border",
+		Position = UDim2.new(1, -1, 0, 0),
+		Size = UDim2.new(0, 1, 1, 0),
+		BackgroundColor3 = Theme.Stroke,
+		BackgroundTransparency = 0.25,
+		BorderSizePixel = 0
+	}, sidebar)
 
-self._sidebar = sidebar
+	local tabList = make("ScrollingFrame", {
+		Name = "TabList",
+		Position = UDim2.fromOffset(8, 10),
+		Size = UDim2.new(1, -16, 1, -110),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		CanvasSize = UDim2.fromOffset(0, 0),
+		AutomaticCanvasSize = Enum.AutomaticSize.None,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		ScrollBarThickness = 3,
+		ScrollBarImageColor3 = Theme.Accent,
+		ScrollBarImageTransparency = 0.25,
+		ScrollingEnabled = true,
+		ElasticBehavior = Enum.ElasticBehavior.Never
+	}, sidebar)
 
-local tabList = make("ScrollingFrame", {
-    Name = "TabList",
-    Position = UDim2.fromOffset(12, 5),
-    Size = UDim2.new(1, -24, 1, -10),
-    BackgroundTransparency = 1,
-    BorderSizePixel = 0,
-    CanvasSize = UDim2.fromOffset(0, 0),
-    AutomaticCanvasSize = Enum.AutomaticSize.None,
-    ScrollingDirection = Enum.ScrollingDirection.X,
-    ScrollBarThickness = 0,
-    ScrollingEnabled = true
-}, sidebar)
+	local tabLayout = make("UIListLayout", {
+		Padding = UDim.new(0, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Left,
+		VerticalAlignment = Enum.VerticalAlignment.Top
+	}, tabList)
 
-local tabLayout = make("UIListLayout", {
-    FillDirection = Enum.FillDirection.Horizontal,
-    Padding = UDim.new(0, 8),
-    SortOrder = Enum.SortOrder.LayoutOrder,
-    HorizontalAlignment = Enum.HorizontalAlignment.Left,
-    VerticalAlignment = Enum.VerticalAlignment.Center
-}, tabList)
+	tabLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		if tabList and tabList.Parent then
+			tabList.CanvasSize = UDim2.fromOffset(0, tabLayout.AbsoluteContentSize.Y + 8)
+		end
+	end)
 
-tabLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    tabList.CanvasSize = UDim2.fromOffset(
-        tabLayout.AbsoluteContentSize.X + 12,
-        0
-    )
-end)
+	tabList.CanvasSize = UDim2.fromOffset(0, tabLayout.AbsoluteContentSize.Y + 8)
 
-self._tabList = tabList
-self._tabLayout = tabLayout
+	self._tabList = tabList
+	self._tabLayout = tabLayout
 
 	local profileCard = make("Frame", {
 		Name = "ProfileCard",
-		Position = UDim2.new(1, -280, 0, 4),
-		Size = UDim2.fromOffset(200, 47),
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 8, 1, -10),
+		Size = UDim2.new(1, -16, 0, 58),
 		BackgroundColor3 = Theme.SurfaceAlt,
-		BackgroundTransparency = 0.55,
-		BorderSizePixel = 0,
-		Visible = true
-	}, topBar)
-	corner(profileCard, 8)
+		BackgroundTransparency = 0.45,
+		BorderSizePixel = 0
+	}, sidebar)
+	corner(profileCard, 10)
+	stroke(profileCard, Theme.Stroke, 0.45)
 	self._profileCard = profileCard
 
 	local avatar = make("ImageLabel", {
 		Name = "Avatar",
-		Position = UDim2.fromOffset(5, 5),
-		Size = UDim2.fromOffset(36, 36),
+		Position = UDim2.fromOffset(9, 9),
+		Size = UDim2.fromOffset(40, 40),
 		BackgroundColor3 = Theme.SurfaceHi,
 		BackgroundTransparency = 0,
 		BorderSizePixel = 0,
@@ -1375,14 +1167,14 @@ self._tabLayout = tabLayout
 		ScaleType = Enum.ScaleType.Crop,
 		ClipsDescendants = true
 	}, profileCard)
-	corner(avatar, 18)
+	corner(avatar, 20)
 	stroke(avatar, Theme.Stroke, 0.5)
 	self._avatar = avatar
 
 	local profileName = make("TextLabel", {
 		Name = "Name",
-		Position = UDim2.fromOffset(48, 8),
-		Size = UDim2.new(1, -54, 0, 16),
+		Position = UDim2.fromOffset(58, 11),
+		Size = UDim2.new(1, -68, 0, 18),
 		BackgroundTransparency = 1,
 		Text = LocalPlayer.DisplayName or LocalPlayer.Name,
 		Font = Enum.Font.GothamBold,
@@ -1396,8 +1188,8 @@ self._tabLayout = tabLayout
 
 	local profileTag = make("TextLabel", {
 		Name = "Tag",
-		Position = UDim2.fromOffset(48, 25),
-		Size = UDim2.new(1, -54, 0, 14),
+		Position = UDim2.fromOffset(58, 29),
+		Size = UDim2.new(1, -68, 0, 16),
 		BackgroundTransparency = 1,
 		Text = "@" .. LocalPlayer.Name,
 		Font = Enum.Font.GothamMedium,
@@ -1410,15 +1202,14 @@ self._tabLayout = tabLayout
 	self._profileTag = profileTag
 
 	local content = make("Frame", {
-    Name = "Content",
-    Position = UDim2.new(0, 0, 0, 105),
-    Size = UDim2.new(1, 0, 1, -105),
-    BackgroundColor3 = Theme.Bg,
-    BorderSizePixel = 0,
-    ClipsDescendants = true
-}, root)
-
-self._content = content
+		Name = "Content",
+		Position = UDim2.new(0, 157, 0, 55),
+		Size = UDim2.new(1, -157, 1, -55),
+		BackgroundColor3 = Theme.Bg,
+		BorderSizePixel = 0,
+		ClipsDescendants = true
+	}, root)
+	self._content = content
 
 	self._resizeApi = Lib.newResize(wrapper, function(newWidth, newHeight)
 		if self._destroyed then
@@ -2232,7 +2023,9 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 			Size = UDim2.new(1, 0, 0, height)
 		}):Play()
 
-		arrow.Text = opened and "⌃" or "⌄"
+		TweenService:Create(arrow, Fast, {
+			Rotation = opened and 180 or 0
+		}):Play()
 
 		if not opened then
 			task.delay(0.21, function()
