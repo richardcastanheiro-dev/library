@@ -11,22 +11,17 @@ Lib.Controls = {}
 Lib._watermarks = {}
 
 local Theme = {
-    Bg = Color3.fromRGB(11, 11, 15),
-    Surface = Color3.fromRGB(20, 20, 27),
-    SurfaceAlt = Color3.fromRGB(28, 28, 37),
-    SurfaceHi = Color3.fromRGB(38, 38, 50),
-    SurfaceHover = Color3.fromRGB(48, 48, 62),
-    Stroke = Color3.fromRGB(55, 55, 72),
-    StrokeSoft = Color3.fromRGB(40, 40, 52),
-    Accent = Color3.fromRGB(147, 97, 255),
-    AccentSoft = Color3.fromRGB(190, 165, 255),
-    AccentDeep = Color3.fromRGB(105, 65, 200),
-    Text = Color3.fromRGB(248, 248, 252),
-    TextDim = Color3.fromRGB(150, 150, 170),
-    TextMuted = Color3.fromRGB(100, 100, 120),
-    Success = Color3.fromRGB(78, 222, 158),
-    Warning = Color3.fromRGB(245, 175, 65),
-    Danger = Color3.fromRGB(245, 95, 120)
+    Bg = Color3.fromRGB(28, 28, 28),
+    Surface = Color3.fromRGB(36, 36, 36),
+    SurfaceAlt = Color3.fromRGB(44, 44, 44),
+    SurfaceHi = Color3.fromRGB(55, 55, 55),
+    Stroke = Color3.fromRGB(70, 70, 70),
+    Accent = Color3.fromRGB(220, 45, 55),
+    AccentSoft = Color3.fromRGB(255, 100, 105),
+    Text = Color3.fromRGB(245, 245, 245),
+    TextDim = Color3.fromRGB(165, 165, 165),
+    Success = Color3.fromRGB(94, 226, 158),
+    Danger = Color3.fromRGB(244, 92, 116)
 }
 
 Lib.Theme = Theme
@@ -821,7 +816,7 @@ function Lib:CreateWindow(config)
         Name = "Root",
         Size = UDim2.fromScale(1, 1),
         BackgroundColor3 = Theme.Bg,
-        BackgroundTransparency = 0,
+        BackgroundTransparency = 1,
         BorderSizePixel = 0,
         ClipsDescendants = true,
         ZIndex = 1
@@ -1064,6 +1059,7 @@ function Lib:CreateWindow(config)
         Size = UDim2.new(1, -165, 1, -52),
         BackgroundColor3 = Theme.Bg,
         BorderSizePixel = 0,
+BackgroundTransparency = 1,
         ClipsDescendants = true,
         ZIndex = 2
     }, root)
