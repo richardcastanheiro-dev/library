@@ -653,6 +653,209 @@ function Window:GetActiveTab()
 	return self._activeTab
 end
 
+
+local function getGroupboxColumns(window, page)
+	window._groupboxColumns = window._groupboxColumns or {}
+
+	local existing = window._groupboxColumns[page]
+	if existing and existing.Parent then
+		return existing
+	end
+
+	local holder = page:FindFirstChild("Holder")
+	if not holder then
+		return nil
+	end
+
+	local columns = make("Frame", {
+		Name = "GroupboxColumns",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		LayoutOrder = nextLayoutOrder(holder)
+	}, holder)
+
+	make("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalAlignment = Enum.HorizontalAlignment.Left,
+		VerticalAlignment = Enum.VerticalAlignment.Top,
+		Padding = UDim.new(0, 12),
+		SortOrder = Enum.SortOrder.LayoutOrder
+	}, columns)
+
+	local left = make("Frame", {
+		Name = "LeftColumn",
+		Size = UDim2.new(0.5, -6, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0
+	}, columns)
+
+	local right = make("Frame", {
+		Name = "RightColumn",
+		Size = UDim2.new(0.5, -6, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0
+	}, columns)
+
+	for _, column in ipairs({left, right}) do
+		make("UIListLayout", {
+			FillDirection = Enum.FillDirection.Vertical,
+			HorizontalAlignment = Enum.HorizontalAlignment.Left,
+			VerticalAlignment = Enum.VerticalAlignment.Top,
+			Padding = UDim.new(0, 10),
+			SortOrder = Enum.SortOrder.LayoutOrder
+		}, column)
+	end
+
+	window._groupboxColumns[page] = {
+		Left = left,
+		Right = right,
+		Container = columns
+	}
+
+	return window._groupboxColumns[page]
+end
+
+function Window:_CreateGroupbox(name, side)
+	if self._destroyed or not self._activeTab then
+		return nil
+	end
+
+	local page = self._activeTab
+	local columns = getGroupboxColumns(self, page)
+	if not columns then
+		return nil
+	end
+
+	local parent = side == "Right" and columns.Right or columns.Left
+
+	local groupbox = make("Frame", {
+		Name = tostring(name or "Groupbox"),
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = Theme.Surface,
+		BackgroundTransparency = 0.15,
+		BorderSizePixel = 0,
+		LayoutOrder = nextLayoutOrder(parent)
+	}, parent)
+
+	corner(groupbox, 10)
+	stroke(groupbox, Theme.Stroke, 0.4)
+
+	make("TextLabel", {
+		Name = "Title",
+		Position = UDim2.fromOffset(12, 8),
+		Size = UDim2.new(1, -24, 0, 22),
+		BackgroundTransparency = 1,
+		Text = tostring(name or "Groupbox"),
+		Font = Enum.Font.GothamBold,
+		TextSize = 13,
+		TextColor3 = Theme.AccentSoft,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		BorderSizePixel = 0
+	}, groupbox)
+
+	local content = make("Frame", {
+		Name = "Content",
+		Position = UDim2.fromOffset(12, 36),
+		Size = UDim2.new(1, -24, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0
+	}, groupbox)
+
+	make("UIListLayout", {
+		FillDirection = Enum.FillDirection.Vertical,
+		HorizontalAlignment = Enum.HorizontalAlignment.Left,
+		VerticalAlignment = Enum.VerticalAlignment.Top,
+		Padding = UDim.new(0, 5),
+		SortOrder = Enum.SortOrder.LayoutOrder
+	}, content)
+
+	make("UIPadding", {
+		PaddingBottom = UDim.new(0, 10)
+	}, content)
+
+	local api = {
+		Frame = groupbox,
+		Content = content
+	}
+
+	function api:AddButton(text, callback)
+		return Lib:CreateButton(content, text, callback)
+	end
+
+	function api:AddToggle(text, default, callback)
+		return Lib:CreateToggle(content, text, default, callback)
+	end
+
+	function api:AddSlider(text, min, max, default, callback)
+		return Lib:CreateSlider(content, text, min, max, default, callback)
+	end
+
+	function api:AddDropdown(text, options, default, callback)
+		return Lib:CreateDropdown(content, text, options, default, callback)
+	end
+
+	function api:AddLabel(text)
+		return Lib:CreateLabel(content, text)
+	end
+
+	function api:AddDivider()
+		return Lib:CreateDivider(content)
+	end
+
+	function api:AddKeybind(text, default, callback)
+		return Lib:CreateKeybind(content, text, default, callback)
+	end
+
+	function api:AddTextbox(text, placeholder, default, callback)
+		return Lib:CreateTextBox(content, text, placeholder, default, callback)
+	end
+
+	function api:AddTextBox(text, placeholder, default, callback)
+		return Lib:CreateTextBox(content, text, placeholder, default, callback)
+	end
+
+	function api:AddColorPicker(text, default, callback)
+		return Lib:CreateColorPicker(content, text, default, callback)
+	end
+
+	function api:AddCheckbox(text, default, callback)
+		return Lib:CreateCheckbox(content, text, default, callback)
+	end
+
+	function api:AddSection(text)
+		return Lib:CreateSection(content, text)
+	end
+
+	function api:AddIcon(icon, size, callback)
+		return Lib:CreateIcon(content, icon, size, callback)
+	end
+
+	function api:Destroy()
+		if groupbox and groupbox.Parent then
+			groupbox:Destroy()
+			refreshPage(page)
+		end
+	end
+
+	refreshPage(page)
+	return api
+end
+
+function Window:AddLeftGroupbox(name)
+	return self:_CreateGroupbox(name, "Left")
+end
+
+function Window:AddRightGroupbox(name)
+	return self:_CreateGroupbox(name, "Right")
+end
+
+
 function Window:CreateTab(name, iconName)
 	if self._destroyed then
 		return
