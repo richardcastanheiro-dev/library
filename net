@@ -583,15 +583,19 @@ function Window:SetProfile(profile)
 
     profile = type(profile) == "table" and profile or {}
 
-    self._profileCard.Visible = false
+    if self._profileCard then
+        self._profileCard.Visible = false
+    end
 
-    if profile.Name ~= nil then
+    if self._profileName and profile.Name ~= nil then
         self._profileName.Text = tostring(profile.Name)
     end
-    if profile.Tag ~= nil then
+
+    if self._profileTag and profile.Tag ~= nil then
         self._profileTag.Text = tostring(profile.Tag)
     end
-    if profile.Image ~= nil then
+
+    if self._avatar and profile.Image ~= nil then
         self._avatar.Image = tostring(profile.Image)
     end
 end
