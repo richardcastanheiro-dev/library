@@ -934,26 +934,26 @@ function Window:CreateTab(name, iconName)
 		BorderSizePixel = 0
 	}, tabButton)
 
-	if iconName then
-		local icon = Lib:GetCustomIcon(iconName)
-		if icon then
-			make("ImageLabel", {
-				Name = "TabIcon",
-				AnchorPoint = Vector2.new(0, 0.5),
-				Position = UDim2.new(0, 10, 0.5, 0),
-				Size = UDim2.fromOffset(18, 18),
-				BackgroundTransparency = 1,
-				ScaleType = Enum.ScaleType.Fit,
-				Image = icon.Url or "",
-				ImageColor3 = Theme.TextDim,
-				ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
-				ImageRectSize = icon.ImageRectSize or Vector2.zero
-			}, tabButton)
+if iconName then
+    local icon = Lib:GetCustomIcon(iconName)
 
-			label.Position = UDim2.fromOffset(36, 0)
-			label.Size = UDim2.new(1, -42, 1, 0)
-		end
-	end
+    if icon then
+        make("ImageLabel", {
+            Name = "SectionIcon",
+            AnchorPoint = Vector2.new(0, 0.5),
+            Position = UDim2.new(0, 0, 0.5, 0),
+            Size = UDim2.fromOffset(16, 16),
+            BackgroundTransparency = 1,
+            ScaleType = Enum.ScaleType.Fit,
+            Image = icon.Url or "",
+            ImageColor3 = Theme.TextDim,
+            ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
+            ImageRectSize = icon.ImageRectSize or Vector2.zero
+        }, section)
+
+        offset = 23
+    end
+end
 
 	local entry = {
 		Name = name,
