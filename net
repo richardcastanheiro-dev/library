@@ -2929,4 +2929,25 @@ task.spawn(function()
     end
 end)
 
+Lib.AutoSave = false
+Lib.AutoSaveInterval = 10
+Lib.AutoSaveName = "Default"
+
+function Lib:SetAutoSave(enabled, interval)
+    self.AutoSave = enabled == true
+    self.AutoSaveInterval = math.max(3, tonumber(interval) or 10)
+end
+
+task.spawn(function()
+    while true do
+        task.wait(Lib.AutoSaveInterval)
+
+        if Lib.AutoSave then
+            pcall(function()
+                Lib:SaveConfig(Lib.AutoSaveName)
+            end)
+        end
+    end
+end)
+
 return Lib
