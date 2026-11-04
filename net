@@ -2908,4 +2908,26 @@ function Lib:GetConfigs()
     return configs
 end
 
+Lib.SaveConfig = function(self, name)
+    name = tostring(name or "Default")
+
+    local HttpService = game:GetService("HttpService")
+    local folder = "MikuLib"
+
+    if not isfolder(folder) then
+        makefolder(folder)
+    end
+
+    local data = {}
+
+    for key, control in pairs(Lib.Controls) do
+        if type(control) == "table" and control.Value ~= nil then
+            data[key] = control.Value
+        end
+    end
+
+    writefile(folder .. "/" .. name .. ".json", HttpService:JSONEncode(data))
+    return true
+end
+
 return Lib
