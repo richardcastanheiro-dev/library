@@ -2797,4 +2797,115 @@ function Lib.new(a, b)
 	return Lib:CreateWindow(a)
 end
 
+local HttpService = game:GetService("HttpService")
+
+Lib.ConfigFolder = "MikuLib"
+Lib.Configs = {}
+
+local function getConfigPath(name)
+    return Lib.ConfigFolder .. "/" .. tostring(name) .. ".json"
+end
+
+function Lib:RegisterConfigValue(name, getter, setter)
+    if type(name) ~= "string" then
+        return
+    end
+
+    Lib.Configs[name] = {
+        Get = getter,
+        Set = setter
+    }
+end
+
+function Lib:SaveConfig(name)
+    name = tostring(name or "Default")
+
+    if not isfolder(Lib.ConfigFolder) then
+        makefolder(Lib.ConfigFolder)
+    end
+
+    local data = {}
+
+    for key, control in pairs(Lib.Configs) do
+        if type(control.Get) == "function" then
+            local success, value = pcall(control.Get)
+
+            if success then
+                data[key] = value
+            end
+        end
+    end
+
+    local success, encoded = pcall(function()
+        return HttpService:JSONEncode(data)
+    end)
+
+    if not success then
+        return false
+    end
+
+    local saved = pcall(function()
+        writefile(getConfigPath(name), encoded)
+    end)
+
+    return saved
+end
+
+function Lib:LoadConfig(name)
+    name = tostring(name or "Default")
+
+    local path = getConfigPath(name)
+
+    if not isfile(path) then
+        return false
+    end
+
+    local success, data = pcall(function()
+        return HttpService:JSONDecode(readfile(path))
+    end)
+
+    if not success or type(data) ~= "table" then
+        return false
+    end
+
+    for key, value in pairs(data) do
+        local control = Lib.Configs[key]
+
+        if control and type(control.Set) == "function" then
+            pcall(control.Set, value)
+        end
+    end
+
+    return true
+end
+
+function Lib:DeleteConfig(name)
+    local path = getConfigPath(name)
+
+    if isfile(path) then
+        delfile(path)
+        return true
+    end
+
+    return false
+end
+
+function Lib:GetConfigs()
+    if not isfolder(Lib.ConfigFolder) then
+        makefolder(Lib.ConfigFolder)
+    end
+
+    local configs = {}
+
+    for _, path in ipairs(listfiles(Lib.ConfigFolder)) do
+        local configName = path:match("([^/\\]+)%.json$")
+
+        if configName then
+            table.insert(configs, configName)
+        end
+    end
+
+    return configs
+end
+
 return Lib
