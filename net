@@ -2797,10 +2797,14 @@ function Lib.new(a, b)
 	return Lib:CreateWindow(a)
 end
 
+
 local HttpService = game:GetService("HttpService")
 
 Lib.ConfigFolder = "MikuLib"
 Lib.Configs = {}
+Lib.AutoSave = false
+Lib.AutoSaveInterval = 10
+Lib.AutoSaveName = "Default"
 
 local function getConfigPath(name)
     return Lib.ConfigFolder .. "/" .. tostring(name) .. ".json"
@@ -2808,25 +2812,27 @@ end
 
 function Lib:RegisterConfigValue(name, getter, setter)
     if type(name) ~= "string" then
-        return
+        return false
     end
 
     Lib.Configs[name] = {
         Get = getter,
         Set = setter
     }
+
+    return true
 end
 
 function Lib:SaveConfig(name)
     name = tostring(name or "Default")
 
-    if not isfolder(Lib.ConfigFolder) then
-        makefolder(Lib.ConfigFolder)
+    if not isfolder(self.ConfigFolder) then
+        makefolder(self.ConfigFolder)
     end
 
     local data = {}
 
-    for key, control in pairs(Lib.Configs) do
+    for key, control in pairs(self.Configs) do
         if type(control.Get) == "function" then
             local success, value = pcall(control.Get)
 
@@ -2844,17 +2850,13 @@ function Lib:SaveConfig(name)
         return false
     end
 
-    local saved = pcall(function()
+    return pcall(function()
         writefile(getConfigPath(name), encoded)
     end)
-
-    return saved
 end
 
 function Lib:LoadConfig(name)
-    name = tostring(name or "Default")
-
-    local path = getConfigPath(name)
+    local path = getConfigPath(name or "Default")
 
     if not isfile(path) then
         return false
@@ -2869,7 +2871,7 @@ function Lib:LoadConfig(name)
     end
 
     for key, value in pairs(data) do
-        local control = Lib.Configs[key]
+        local control = self.Configs[key]
 
         if control and type(control.Set) == "function" then
             pcall(control.Set, value)
@@ -2880,24 +2882,23 @@ function Lib:LoadConfig(name)
 end
 
 function Lib:DeleteConfig(name)
-    local path = getConfigPath(name)
+    local path = getConfigPath(name or "Default")
 
     if isfile(path) then
-        delfile(path)
-        return true
+        return pcall(delfile, path)
     end
 
     return false
 end
 
 function Lib:GetConfigs()
-    if not isfolder(Lib.ConfigFolder) then
-        makefolder(Lib.ConfigFolder)
+    if not isfolder(self.ConfigFolder) then
+        makefolder(self.ConfigFolder)
     end
 
     local configs = {}
 
-    for _, path in ipairs(listfiles(Lib.ConfigFolder)) do
+    for _, path in ipairs(listfiles(self.ConfigFolder)) do
         local configName = path:match("([^/\\]+)%.json$")
 
         if configName then
@@ -2908,26 +2909,24 @@ function Lib:GetConfigs()
     return configs
 end
 
-Lib.SaveConfig = function(self, name)
-    name = tostring(name or "Default")
+function Lib:SetAutoSave(enabled, interval)
+    self.AutoSave = enabled == true
 
-    local HttpService = game:GetService("HttpService")
-    local folder = "MikuLib"
-
-    if not isfolder(folder) then
-        makefolder(folder)
+    if interval then
+        self.AutoSaveInterval = math.max(3, tonumber(interval) or 10)
     end
+end
 
-    local data = {}
+task.spawn(function()
+    while true do
+        task.wait(Lib.AutoSaveInterval)
 
-    for key, control in pairs(Lib.Controls) do
-        if type(control) == "table" and control.Value ~= nil then
-            data[key] = control.Value
+        if Lib.AutoSave then
+            pcall(function()
+                Lib:SaveConfig(Lib.AutoSaveName)
+            end)
         end
     end
-
-    writefile(folder .. "/" .. name .. ".json", HttpService:JSONEncode(data))
-    return true
-end
+end)
 
 return Lib
