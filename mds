@@ -1235,58 +1235,70 @@ function Lib:ResolveIcon(name)
 end
 
 function Lib:CreateSection(parent, text)
-	local name, icon
-	if type(text) == "table" then
-		name = text.name or text.Name or text.Text
-		icon = text.icon or text.Icon
-	else
+	local config = type(text) == "table" and text or {
 		name = text
-	end
-	name = tostring(name or "Section")
-	if not icon then
-		icon = self:ResolveIcon(name)
-	end
+	}
 
-	local section = Instance.new("Frame")
+	local name = config.name or config.Name or "Seção"
+	local iconName = config.icon or config.Icon
+
+	local section, page = prepareControl(parent, 30, "Frame")
+
 	section.Name = "Section"
 	section.BackgroundTransparency = 1
-	section.Size = UDim2.new(1, 0, 0, 28)
-	section.Parent = parent
+	section.BorderSizePixel = 0
+	section.Size = UDim2.new(1, 0, 0, 30)
 
-	local drawn = renderIcon(section, self:GetIcon(icon), {
-		Name = "SectionIcon",
-		Position = UDim2.fromOffset(0, 3),
-		Size = UDim2.fromOffset(18, 18),
-		Color = Theme.AccentSoft,
-		TextSize = 16,
-	})
+	local offset = 0
 
-	local offset = drawn and 26 or 0
+	if iconName then
+		local icon = Lib:GetCustomIcon(iconName)
 
-	local title = Instance.new("TextLabel")
-	title.Name = "Title"
-	title.BackgroundTransparency = 1
-	title.Position = UDim2.fromOffset(offset, 0)
-	title.Size = UDim2.new(1, -offset, 0, 24)
-	title.Font = Enum.Font.GothamBold
-	title.Text = name
-	title.TextSize = 13
-	title.TextXAlignment = Enum.TextXAlignment.Left
-	title.TextColor3 = Theme.AccentSoft
-	title.Parent = section
+		if icon and icon.Url then
+			make("ImageLabel", {
+				Name = "SectionIcon",
+				Position = UDim2.fromOffset(0, 5),
+				Size = UDim2.fromOffset(16, 16),
+				BackgroundTransparency = 1,
+				Image = icon.Url,
+				ImageColor3 = Theme.AccentSoft,
+				ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
+				ImageRectSize = icon.ImageRectSize or Vector2.zero,
+				ScaleType = Enum.ScaleType.Fit
+			}, section)
 
-	local line = Instance.new("Frame")
-	line.Name = "Line"
-	line.BorderSizePixel = 0
-	line.BackgroundColor3 = Theme.Stroke
-	line.BackgroundTransparency = 0.25
-	line.Position = UDim2.new(0, 0, 1, -1)
-	line.Size = UDim2.new(1, 0, 0, 1)
-	line.Parent = section
+			offset = 23
+		end
+	end
+
+	make("TextLabel", {
+		Name = "Title",
+		Position = UDim2.fromOffset(offset, 0),
+		Size = UDim2.new(1, -offset, 0, 24),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Text = tostring(name),
+		Font = Enum.Font.GothamBold,
+		TextSize = 13,
+		TextColor3 = Theme.AccentSoft,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		TextTruncate = Enum.TextTruncate.AtEnd
+	}, section)
+
+	make("Frame", {
+		Name = "Line",
+		Position = UDim2.new(0, 0, 1, -1),
+		Size = UDim2.new(1, 0, 0, 1),
+		BackgroundColor3 = Theme.Stroke,
+		BackgroundTransparency = 0.25,
+		BorderSizePixel = 0
+	}, section)
+
+	refreshPage(page)
 
 	return section
 end
-
 function Lib:CreateDivider(parent)
 	local divider, page = prepareControl(parent, 1, "Frame")
 	divider.BackgroundColor3 = Theme.Stroke
