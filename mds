@@ -1209,69 +1209,82 @@ function Lib:SetDisabled(control, disabled)
 	end
 end
 
-function Lib:CreateSection(parent, text)
-	local config = type(text) == "table" and text or { name = text }
-	local name = config.name or config.Name or config.Text or "Seção"
-	local iconName = config.icon or config.Icon
+local SectionIcons = {
+	selection = "crosshair", target = "crosshair", alvos = "crosshair", aim = "crosshair",
+	combate = "swords", combat = "swords", silent = "crosshair",
+	visual = "eye", visuais = "eye", esp = "radar", render = "eye",
+	efeito = "sparkles", efeitos = "sparkles", extras = "plus",
+	defesa = "shield", defense = "shield", anticheat = "shield",
+	servidor = "server", server = "server", raid = "flame",
+	utilidade = "wrench", utilidades = "wrench", utils = "wrench", teleport = "map-pin",
+	config = "settings", configuracoes = "settings", settings = "settings",
+	inicio = "home", home = "home", main = "home",
+	credito = "star", creditos = "star",
+	player = "user", players = "users", jogador = "user", status = "activity",
+	info = "info", farm = "pickaxe", auto = "zap", stats = "bar-chart",
+}
 
-	local section, page = prepareControl(parent, 26, "Frame")
-
-	local offset = 0
-
-	if iconName then
-		local icon = Lib:GetCustomIcon(iconName)
-		local rendered = renderIcon(section, icon, {
-			Name = "SectionIcon",
-			Position = UDim2.fromOffset(0, 3),
-			Size = UDim2.fromOffset(18, 18),
-			Color = Theme.AccentSoft,
-			TextSize = 16
-		})
-		if rendered then
-			offset = 24
+function Lib:ResolveIcon(name)
+	local key = string.lower(tostring(name or ""))
+	for k, v in pairs(SectionIcons) do
+		if string.find(key, k, 1, true) then
+			return v
 		end
 	end
-
-	make("TextLabel", {
-		Name = "Title",
-		Position = UDim2.fromOffset(offset, 0),
-		Size = UDim2.new(1, -offset, 0, 24),
-		BackgroundTransparency = 1,
-		Text = tostring(name),
-		Font = Enum.Font.GothamBold,
-		TextSize = 13,
-		TextColor3 = Theme.AccentSoft,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		BorderSizePixel = 0
-	}, section)
-
-	make("Frame", {
-		Name = "Line",
-		Position = UDim2.new(0, 0, 1, -1),
-		Size = UDim2.new(1, 0, 0, 1),
-		BackgroundColor3 = Theme.Stroke,
-		BackgroundTransparency = 0.25,
-		BorderSizePixel = 0
-	}, section)
-
-	refreshPage(page)
-	return section
+	return "circle"
 end
 
-function Lib:CreateLabel(parent, text)
-	local label, page = prepareControl(parent, 20, "TextLabel")
-	label.Text = tostring(text or "")
-	label.Font = Enum.Font.Gotham
-	label.TextSize = 13
-	label.TextColor3 = Theme.Text
-	label.TextWrapped = true
-	label.TextXAlignment = Enum.TextXAlignment.Left
-	label.TextYAlignment = Enum.TextYAlignment.Top
-	label.AutomaticSize = Enum.AutomaticSize.Y
-	label.Size = UDim2.new(1, 0, 0, 20)
-	refreshPage(page)
-	return label
+function Lib:CreateSection(parent, text)
+	local name, icon
+	if type(text) == "table" then
+		name = text.name or text.Name or text.Text
+		icon = text.icon or text.Icon
+	else
+		name = text
+	end
+	name = tostring(name or "Section")
+	if not icon then
+		icon = self:ResolveIcon(name)
+	end
+
+	local section = Instance.new("Frame")
+	section.Name = "Section"
+	section.BackgroundTransparency = 1
+	section.Size = UDim2.new(1, 0, 0, 28)
+	section.Parent = parent
+
+	local drawn = renderIcon(section, self:GetIcon(icon), {
+		Name = "SectionIcon",
+		Position = UDim2.fromOffset(0, 3),
+		Size = UDim2.fromOffset(18, 18),
+		Color = Theme.AccentSoft,
+		TextSize = 16,
+	})
+
+	local offset = drawn and 26 or 0
+
+	local title = Instance.new("TextLabel")
+	title.Name = "Title"
+	title.BackgroundTransparency = 1
+	title.Position = UDim2.fromOffset(offset, 0)
+	title.Size = UDim2.new(1, -offset, 0, 24)
+	title.Font = Enum.Font.GothamBold
+	title.Text = name
+	title.TextSize = 13
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextColor3 = Theme.AccentSoft
+	title.Parent = section
+
+	local line = Instance.new("Frame")
+	line.Name = "Line"
+	line.BorderSizePixel = 0
+	line.BackgroundColor3 = Theme.Stroke
+	line.BackgroundTransparency = 0.25
+	line.Position = UDim2.new(0, 0, 1, -1)
+	line.Size = UDim2.new(1, 0, 0, 1)
+	line.Parent = section
+
+	return section
 end
 
 function Lib:CreateDivider(parent)
