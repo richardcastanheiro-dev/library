@@ -30,12 +30,7 @@ local Slow = TweenInfo.new(0.32, Enum.EasingStyle.Quint, Enum.EasingDirection.Ou
 local In = TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
 
 Lib.Theme = Theme
-Lib.Tween = {
-	Fast = Fast,
-	Normal = Normal,
-	Slow = Slow,
-	In = In
-}
+Lib.Tween = { Fast = Fast, Normal = Normal, Slow = Slow, In = In }
 
 local IconLoaded, IconModule = pcall(function()
 	return loadstring(game:HttpGet(
@@ -44,6 +39,8 @@ local IconLoaded, IconModule = pcall(function()
 end)
 
 Lib.Icons = IconLoaded and IconModule or nil
+
+local _missingIcons = {}
 
 local function make(class, properties, parent)
 	local object = Instance.new(class)
@@ -208,11 +205,15 @@ function Lib:GetIcon(name)
 	end)
 
 	if success and type(icon) == "table" then
-		if icon.Url or (icon.FontFace and icon.Text) then
+		if icon.Url or icon.FontFace or icon.Font or icon.Text then
 			return icon
 		end
 	end
 
+	if not _missingIcons[name] then
+		_missingIcons[name] = true
+		warn("[MikuLib] Icon not found or invalid: " .. tostring(name))
+	end
 	return nil
 end
 
@@ -241,6 +242,70 @@ function Lib:GetIconNames()
 	end
 	return self.Icons.Icons
 end
+
+local function renderIcon(parent, icon, props)
+	if not icon then
+		return nil
+	end
+	local baseProps = props or {}
+	local object
+
+	if icon.FontFace then
+		local labels = {
+			Name = baseProps.Name or "Icon",
+			Position = baseProps.Position,
+			AnchorPoint = baseProps.AnchorPoint,
+			Size = baseProps.Size,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			FontFace = icon.FontFace,
+			Text = icon.Text or "",
+			TextColor3 = baseProps.Color or Theme.AccentSoft,
+			TextSize = baseProps.TextSize or 16,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextYAlignment = Enum.TextYAlignment.Center
+		}
+		object = make("TextLabel", labels, parent)
+	elseif icon.Font and icon.Text then
+		local labels = {
+			Name = baseProps.Name or "Icon",
+			Position = baseProps.Position,
+			AnchorPoint = baseProps.AnchorPoint,
+			Size = baseProps.Size,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Font = icon.Font,
+			Text = icon.Text,
+			TextColor3 = baseProps.Color or Theme.AccentSoft,
+			TextSize = baseProps.TextSize or 16,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextYAlignment = Enum.TextYAlignment.Center
+		}
+		object = make("TextLabel", labels, parent)
+	elseif icon.Url and icon.Url ~= "" then
+		local images = {
+			Name = baseProps.Name or "Icon",
+			Position = baseProps.Position,
+			AnchorPoint = baseProps.AnchorPoint,
+			Size = baseProps.Size,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Image = icon.Url,
+			ImageColor3 = baseProps.Color or Theme.AccentSoft,
+			ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
+			ImageRectSize = icon.ImageRectSize or Vector2.zero,
+			ScaleType = Enum.ScaleType.Fit
+		}
+		object = make("ImageLabel", images, parent)
+	end
+
+	if object and baseProps.Name then
+		object.Name = baseProps.Name
+	end
+	return object
+end
+
+Lib.RenderIcon = renderIcon
 
 function Lib.newDraggable(target, handle, isLocked)
 	local dragging = false
@@ -364,18 +429,11 @@ function Lib.newResize(target, callback)
 	end
 
 	handle.MouseEnter:Connect(function()
-		TweenService:Create(handle, Fast, {
-			TextColor3 = Theme.Accent,
-			BackgroundTransparency = 0
-		}):Play()
+		TweenService:Create(handle, Fast, { TextColor3 = Theme.Accent, BackgroundTransparency = 0 }):Play()
 	end)
-
 	handle.MouseLeave:Connect(function()
 		if not dragging then
-			TweenService:Create(handle, Fast, {
-				TextColor3 = Theme.TextDim,
-				BackgroundTransparency = 0.1
-			}):Play()
+			TweenService:Create(handle, Fast, { TextColor3 = Theme.TextDim, BackgroundTransparency = 0.1 }):Play()
 		end
 	end)
 
@@ -389,29 +447,19 @@ function Lib.newResize(target, callback)
 		startSize = target.AbsoluteSize
 
 		moveConnection = UserInputService.InputChanged:Connect(function(changed)
-			if not dragging then
-				return
-			end
-			if changed.UserInputType ~= Enum.UserInputType.MouseMovement and changed.UserInputType ~= Enum.UserInputType.Touch then
-				return
-			end
+			if not dragging then return end
+			if changed.UserInputType ~= Enum.UserInputType.MouseMovement and changed.UserInputType ~= Enum.UserInputType.Touch then return end
 			local mouse = UserInputService:GetMouseLocation()
 			local delta = mouse - startMouse
 			local viewport = getViewport()
-
 			local maxWidth = math.max(320, viewport.X - 40)
 			local maxHeight = math.max(240, viewport.Y - 40)
 			local minWidth = math.min(360, maxWidth)
 			local minHeight = math.min(240, maxHeight)
-
 			local width = math.clamp(startSize.X + delta.X, minWidth, maxWidth)
 			local height = math.clamp(startSize.Y + delta.Y, minHeight, maxHeight)
-
 			target.Size = UDim2.fromOffset(width, height)
-
-			if callback then
-				callback(width, height)
-			end
+			if callback then callback(width, height) end
 		end)
 
 		endConnection = UserInputService.InputEnded:Connect(function(changed)
@@ -435,18 +483,14 @@ Window.__index = Window
 function Window:_cancelTweens()
 	for _, tween in ipairs(self._tweens) do
 		if tween then
-			pcall(function()
-				tween:Cancel()
-			end)
+			pcall(function() tween:Cancel() end)
 		end
 	end
 	self._tweens = {}
 end
 
 function Window:ClampPosition()
-	if not self._wrapper then
-		return
-	end
+	if not self._wrapper then return end
 	local viewport = getViewport()
 	local size = self._wrapper.AbsoluteSize
 	if size.X < 1 or size.Y < 1 then
@@ -460,21 +504,15 @@ function Window:ClampPosition()
 end
 
 function Window:Open()
-	if self._destroyed or self._visible then
-		return
-	end
+	if self._destroyed or self._visible then return end
 	self._visible = true
 	self._wrapper.Visible = true
 	self:_cancelTweens()
 	self._animToken = self._animToken + 1
 	self._rootScale.Scale = 0.94
 	self._root.GroupTransparency = 1
-	local scaleTween = TweenService:Create(self._rootScale, TweenInfo.new(0.34, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-		Scale = 1
-	})
-	local fadeTween = TweenService:Create(self._root, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		GroupTransparency = 0
-	})
+	local scaleTween = TweenService:Create(self._rootScale, TweenInfo.new(0.34, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+	local fadeTween = TweenService:Create(self._root, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { GroupTransparency = 0 })
 	self._tweens = { scaleTween, fadeTween }
 	scaleTween:Play()
 	fadeTween:Play()
@@ -487,29 +525,19 @@ function Window:Open()
 end
 
 function Window:Close()
-	if self._destroyed then
-		return
-	end
-	if not self._visible and not self._wrapper.Visible then
-		return
-	end
+	if self._destroyed then return end
+	if not self._visible and not self._wrapper.Visible then return end
 	self._visible = false
 	self:_cancelTweens()
 	self._animToken = self._animToken + 1
 	local token = self._animToken
-	local fadeTween = TweenService:Create(self._root, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-		GroupTransparency = 1
-	})
-	local scaleTween = TweenService:Create(self._rootScale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-		Scale = 0.92
-	})
+	local fadeTween = TweenService:Create(self._root, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { GroupTransparency = 1 })
+	local scaleTween = TweenService:Create(self._rootScale, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0.92 })
 	self._tweens = { fadeTween, scaleTween }
 	fadeTween:Play()
 	scaleTween:Play()
 	scaleTween.Completed:Connect(function()
-		if self._destroyed then
-			return
-		end
+		if self._destroyed then return end
 		if self._animToken == token and not self._visible then
 			self._wrapper.Visible = false
 			self._rootScale.Scale = 1
@@ -519,19 +547,11 @@ function Window:Close()
 end
 
 function Window:SetVisible(value)
-	if value then
-		self:Open()
-	else
-		self:Close()
-	end
+	if value then self:Open() else self:Close() end
 end
 
 function Window:Toggle()
-	if self._visible then
-		self:Close()
-	else
-		self:Open()
-	end
+	if self._visible then self:Close() else self:Open() end
 end
 
 function Window:GetVisible()
@@ -539,28 +559,19 @@ function Window:GetVisible()
 end
 
 function Window:Minimize()
-	if self._destroyed then
-		return
-	end
+	if self._destroyed then return end
 	self._minimized = not self._minimized
 	local target = self._minimized and UDim2.new(1, 0, 0, 55) or UDim2.fromScale(1, 1)
-	TweenService:Create(self._root, Normal, {
-		Size = target
-	}):Play()
+	TweenService:Create(self._root, Normal, { Size = target }):Play()
 end
 
 function Window:SetSize(width, height)
-	if self._destroyed then
-		return
-	end
-	local nextWidth
-	local nextHeight
+	if self._destroyed then return end
+	local nextWidth, nextHeight
 	if typeof(width) == "UDim2" then
-		nextWidth = width.X.Offset
-		nextHeight = width.Y.Offset
+		nextWidth, nextHeight = width.X.Offset, width.Y.Offset
 	elseif typeof(width) == "Vector2" then
-		nextWidth = width.X
-		nextHeight = width.Y
+		nextWidth, nextHeight = width.X, width.Y
 	elseif type(width) == "number" then
 		nextWidth = width
 		nextHeight = height or self._baseSize.Y
@@ -580,37 +591,21 @@ function Window:SetSize(width, height)
 end
 
 function Window:SetTitle(title, subtitle)
-	if title ~= nil then
-		self._titleLabel.Text = tostring(title)
-	end
-	if subtitle ~= nil then
-		self._subtitleLabel.Text = tostring(subtitle)
-	end
+	if title ~= nil then self._titleLabel.Text = tostring(title) end
+	if subtitle ~= nil then self._subtitleLabel.Text = tostring(subtitle) end
 end
 
 function Window:SetSubtitle(subtitle)
-	if subtitle ~= nil then
-		self._subtitleLabel.Text = tostring(subtitle)
-	end
+	if subtitle ~= nil then self._subtitleLabel.Text = tostring(subtitle) end
 end
 
 function Window:SetProfile(profile)
-	if self._destroyed then
-		return
-	end
+	if self._destroyed then return end
 	profile = type(profile) == "table" and profile or {}
-	if profile.Hidden ~= nil then
-		self._profileCard.Visible = not profile.Hidden
-	end
-	if profile.Name ~= nil then
-		self._profileName.Text = tostring(profile.Name)
-	end
-	if profile.Tag ~= nil then
-		self._profileTag.Text = tostring(profile.Tag)
-	end
-	if profile.Image ~= nil then
-		self._avatar.Image = tostring(profile.Image)
-	end
+	if profile.Hidden ~= nil then self._profileCard.Visible = not profile.Hidden end
+	if profile.Name ~= nil then self._profileName.Text = tostring(profile.Name) end
+	if profile.Tag ~= nil then self._profileTag.Text = tostring(profile.Tag) end
+	if profile.Image ~= nil then self._avatar.Image = tostring(profile.Image) end
 end
 
 function Window:SelectTab(target)
@@ -628,9 +623,7 @@ function Window:SelectTab(target)
 			entry = self._tabs[target]
 		end
 	end
-	if not entry then
-		return
-	end
+	if not entry then return end
 	for _, item in ipairs(self._tabs) do
 		local active = item == entry
 		item.Active = active
@@ -663,9 +656,7 @@ function Window:GetActiveTab()
 end
 
 function Window:CreateTab(name, iconName)
-	if self._destroyed then
-		return
-	end
+	if self._destroyed then return end
 	local config = type(name) == "table" and name or nil
 	if config then
 		iconName = config.Icon or config.IconName
@@ -742,42 +733,14 @@ function Window:CreateTab(name, iconName)
 
 	if iconName then
 		local icon = Lib:GetCustomIcon(iconName)
-		local rendered = false
-
-		if icon then
-			if icon.FontFace and icon.Text then
-				make("TextLabel", {
-					Name = "TabIcon",
-					AnchorPoint = Vector2.new(0, 0.5),
-					Position = UDim2.new(0, 10, 0.5, 0),
-					Size = UDim2.fromOffset(18, 18),
-					BackgroundTransparency = 1,
-					BorderSizePixel = 0,
-					FontFace = icon.FontFace,
-					Text = icon.Text,
-					TextColor3 = Theme.TextDim,
-					TextSize = 16,
-					TextXAlignment = Enum.TextXAlignment.Center,
-					TextYAlignment = Enum.TextYAlignment.Center
-				}, tabButton)
-				rendered = true
-			elseif icon.Url and icon.Url ~= "" then
-				make("ImageLabel", {
-					Name = "TabIcon",
-					AnchorPoint = Vector2.new(0, 0.5),
-					Position = UDim2.new(0, 10, 0.5, 0),
-					Size = UDim2.fromOffset(18, 18),
-					BackgroundTransparency = 1,
-					ScaleType = Enum.ScaleType.Fit,
-					Image = icon.Url,
-					ImageColor3 = Theme.TextDim,
-					ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
-					ImageRectSize = icon.ImageRectSize or Vector2.zero
-				}, tabButton)
-				rendered = true
-			end
-		end
-
+		local rendered = renderIcon(tabButton, icon, {
+			Name = "TabIcon",
+			Position = UDim2.new(0, 10, 0.5, 0),
+			AnchorPoint = Vector2.new(0, 0.5),
+			Size = UDim2.fromOffset(18, 18),
+			Color = Theme.TextDim,
+			TextSize = 16
+		})
 		if rendered then
 			label.Position = UDim2.fromOffset(36, 0)
 			label.Size = UDim2.new(1, -42, 1, 0)
@@ -831,17 +794,9 @@ function Window:Notify(title, text, duration)
 	return Lib:Notify(title, text, duration)
 end
 
-function Window:CreateWatermark(text)
-	return Lib:CreateWatermark(text)
-end
-
-function Window:Watermark(text)
-	return Lib:CreateWatermark(text)
-end
-
-function Window:termark(text)
-	return Lib:CreateWatermark(text)
-end
+function Window:CreateWatermark(text) return Lib:CreateWatermark(text) end
+function Window:Watermark(text) return Lib:CreateWatermark(text) end
+function Window:termark(text) return Lib:CreateWatermark(text) end
 
 function Window:SetKeybind(key)
 	if self._keybindConnection then
@@ -860,51 +815,22 @@ function Window:SetKeybind(key)
 	end)
 end
 
-function Window:GetKeybind()
-	return self._keybind
-end
+function Window:GetKeybind() return self._keybind end
 
 function Window:Destroy()
-	if self._destroyed then
-		return
-	end
+	if self._destroyed then return end
 	self._destroyed = true
 	self._visible = false
-
-	if self._resizeApi then
-		pcall(function()
-			self._resizeApi.Destroy()
-		end)
-		self._resizeApi = nil
-	end
-	if self._dragApi then
-		pcall(function()
-			self._dragApi.Destroy()
-		end)
-		self._dragApi = nil
-	end
-	if self._keybindConnection then
-		self._keybindConnection:Disconnect()
-		self._keybindConnection = nil
-	end
-
+	if self._resizeApi then pcall(function() self._resizeApi.Destroy() end) self._resizeApi = nil end
+	if self._dragApi then pcall(function() self._dragApi.Destroy() end) self._dragApi = nil end
+	if self._keybindConnection then self._keybindConnection:Disconnect() self._keybindConnection = nil end
 	self:_cancelTweens()
-
 	for index = #Lib.Windows, 1, -1 do
-		if Lib.Windows[index] == self then
-			table.remove(Lib.Windows, index)
-		end
+		if Lib.Windows[index] == self then table.remove(Lib.Windows, index) end
 	end
-
 	local sharedTable = getShared(false)
-	if sharedTable and sharedTable.MikuLibInstance == self then
-		sharedTable.MikuLibInstance = nil
-	end
-
-	if self._screenGui then
-		self._screenGui:Destroy()
-		self._screenGui = nil
-	end
+	if sharedTable and sharedTable.MikuLibInstance == self then sharedTable.MikuLibInstance = nil end
+	if self._screenGui then self._screenGui:Destroy() self._screenGui = nil end
 end
 
 function Lib:CreateWindow(config)
@@ -913,9 +839,7 @@ function Lib:CreateWindow(config)
 	if sharedTable then
 		local old = sharedTable.MikuLibInstance
 		if old and old ~= nil and not sharedTable.MikuLibKeepOldInstance and type(old.Destroy) == "function" then
-			pcall(function()
-				old:Destroy()
-			end)
+			pcall(function() old:Destroy() end)
 		end
 	end
 
@@ -931,23 +855,13 @@ function Lib:CreateWindow(config)
 	local requestedWidth = 1000
 	local requestedHeight = 580
 	if typeof(config.Size) == "UDim2" then
-		if config.Size.X.Scale > 0 then
-			requestedWidth = viewport.X * config.Size.X.Scale
-		elseif config.Size.X.Offset > 0 then
-			requestedWidth = config.Size.X.Offset
-		end
-		if config.Size.Y.Scale > 0 then
-			requestedHeight = viewport.Y * config.Size.Y.Scale
-		elseif config.Size.Y.Offset > 0 then
-			requestedHeight = config.Size.Y.Offset
-		end
+		if config.Size.X.Scale > 0 then requestedWidth = viewport.X * config.Size.X.Scale
+		elseif config.Size.X.Offset > 0 then requestedWidth = config.Size.X.Offset end
+		if config.Size.Y.Scale > 0 then requestedHeight = viewport.Y * config.Size.Y.Scale
+		elseif config.Size.Y.Offset > 0 then requestedHeight = config.Size.Y.Offset end
 	end
-	if tonumber(config.Width) then
-		requestedWidth = tonumber(config.Width)
-	end
-	if tonumber(config.Height) then
-		requestedHeight = tonumber(config.Height)
-	end
+	if tonumber(config.Width) then requestedWidth = tonumber(config.Width) end
+	if tonumber(config.Height) then requestedHeight = tonumber(config.Height) end
 
 	local maxWidth = math.max(320, viewport.X - 40)
 	local minWidth = math.min(360, maxWidth)
@@ -996,11 +910,7 @@ function Lib:CreateWindow(config)
 	stroke(root, Theme.Stroke, 0.25)
 	self._root = root
 
-	local rootScale = make("UIScale", {
-		Name = "Scale",
-		Scale = 1
-	}, root)
-	self._rootScale = rootScale
+	self._rootScale = make("UIScale", { Name = "Scale", Scale = 1 }, root)
 
 	local topBar = make("Frame", {
 		Name = "TopBar",
@@ -1064,20 +974,12 @@ function Lib:CreateWindow(config)
 	}, topBar)
 	corner(minButton, 7)
 	minButton.MouseEnter:Connect(function()
-		TweenService:Create(minButton, Fast, {
-			BackgroundTransparency = 0.78,
-			TextColor3 = Theme.AccentSoft
-		}):Play()
+		TweenService:Create(minButton, Fast, { BackgroundTransparency = 0.78, TextColor3 = Theme.AccentSoft }):Play()
 	end)
 	minButton.MouseLeave:Connect(function()
-		TweenService:Create(minButton, Fast, {
-			BackgroundTransparency = 1,
-			TextColor3 = Theme.TextDim
-		}):Play()
+		TweenService:Create(minButton, Fast, { BackgroundTransparency = 1, TextColor3 = Theme.TextDim }):Play()
 	end)
-	minButton.MouseButton1Click:Connect(function()
-		self:Minimize()
-	end)
+	minButton.MouseButton1Click:Connect(function() self:Minimize() end)
 
 	local closeButton = make("TextButton", {
 		Name = "CloseButton",
@@ -1095,20 +997,12 @@ function Lib:CreateWindow(config)
 	}, topBar)
 	corner(closeButton, 7)
 	closeButton.MouseEnter:Connect(function()
-		TweenService:Create(closeButton, Fast, {
-			BackgroundTransparency = 0.82,
-			TextColor3 = Theme.Danger
-		}):Play()
+		TweenService:Create(closeButton, Fast, { BackgroundTransparency = 0.82, TextColor3 = Theme.Danger }):Play()
 	end)
 	closeButton.MouseLeave:Connect(function()
-		TweenService:Create(closeButton, Fast, {
-			BackgroundTransparency = 1,
-			TextColor3 = Theme.TextDim
-		}):Play()
+		TweenService:Create(closeButton, Fast, { BackgroundTransparency = 1, TextColor3 = Theme.TextDim }):Play()
 	end)
-	closeButton.MouseButton1Click:Connect(function()
-		self:Close()
-	end)
+	closeButton.MouseButton1Click:Connect(function() self:Close() end)
 
 	local dragArea = make("Frame", {
 		Name = "DragArea",
@@ -1170,7 +1064,6 @@ function Lib:CreateWindow(config)
 	end)
 
 	tabList.CanvasSize = UDim2.fromOffset(0, tabLayout.AbsoluteContentSize.Y + 8)
-
 	self._tabList = tabList
 	self._tabLayout = tabLayout
 
@@ -1244,9 +1137,7 @@ function Lib:CreateWindow(config)
 	self._content = content
 
 	self._resizeApi = Lib.newResize(wrapper, function(newWidth, newHeight)
-		if self._destroyed then
-			return
-		end
+		if self._destroyed then return end
 		self._baseSize = Vector2.new(newWidth, newHeight)
 		for _, entry in ipairs(self._tabs) do
 			refreshPage(entry.Page)
@@ -1273,19 +1164,13 @@ function Lib:CreateWindow(config)
 	end)
 
 	local keybind = config.Keybind
-	if keybind == nil then
-		keybind = Enum.KeyCode.RightControl
-	end
+	if keybind == nil then keybind = Enum.KeyCode.RightControl end
 	self:SetKeybind(keybind)
 	table.insert(Lib.Windows, self)
 
 	local startVisible = config.StartVisible
-	if startVisible == nil then
-		startVisible = config.Visible
-	end
-	if startVisible == nil then
-		startVisible = true
-	end
+	if startVisible == nil then startVisible = config.Visible end
+	if startVisible == nil then startVisible = true end
 	if startVisible then
 		self:Open()
 	else
@@ -1294,31 +1179,24 @@ function Lib:CreateWindow(config)
 		self._wrapper.Visible = false
 	end
 
-	if sharedTable then
-		sharedTable.MikuLibInstance = self
-	end
+	if sharedTable then sharedTable.MikuLibInstance = self end
 	return self
 end
 
 function Lib:SetValue(control, value)
 	local data = self.Controls[control]
-	if data and data.SetValue then
-		data.SetValue(value)
-	end
+	if data and data.SetValue then data.SetValue(value) end
 end
 
 function Lib:GetValue(control)
 	local data = self.Controls[control]
-	if data and data.GetValue then
-		return data.GetValue()
-	end
+	if data and data.GetValue then return data.GetValue() end
 end
 
 function Lib:SetVisible(control, visible)
 	if control and control.Parent then
 		control.Visible = visible == true
-		local page = getPageFrom(control)
-		refreshPage(page)
+		refreshPage(getPageFrom(control))
 	end
 end
 
@@ -1332,11 +1210,8 @@ function Lib:SetDisabled(control, disabled)
 end
 
 function Lib:CreateSection(parent, text)
-	local config = type(text) == "table" and text or {
-		name = text
-	}
-
-	local name = config.name or config.Name or "Seção"
+	local config = type(text) == "table" and text or { name = text }
+	local name = config.name or config.Name or config.Text or "Seção"
 	local iconName = config.icon or config.Icon
 
 	local section, page = prepareControl(parent, 26, "Frame")
@@ -1345,41 +1220,15 @@ function Lib:CreateSection(parent, text)
 
 	if iconName then
 		local icon = Lib:GetCustomIcon(iconName)
-
-		if icon then
-			if icon.FontFace and icon.Text then
-				make("TextLabel", {
-					Name = "SectionIcon",
-					Position = UDim2.fromOffset(0, 3),
-					Size = UDim2.fromOffset(18, 18),
-					BackgroundTransparency = 1,
-					BorderSizePixel = 0,
-					FontFace = icon.FontFace,
-					Text = icon.Text,
-					TextColor3 = Theme.AccentSoft,
-					TextSize = 16,
-					TextXAlignment = Enum.TextXAlignment.Center,
-					TextYAlignment = Enum.TextYAlignment.Center
-				}, section)
-
-				offset = 24
-			elseif icon.Url and icon.Url ~= "" then
-				make("ImageLabel", {
-					Name = "SectionIcon",
-					Position = UDim2.fromOffset(0, 3),
-					Size = UDim2.fromOffset(18, 18),
-					BackgroundTransparency = 1,
-					BorderSizePixel = 0,
-					Image = icon.Url,
-					ImageColor3 = Theme.AccentSoft,
-					ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
-					ImageRectSize = icon.ImageRectSize or Vector2.zero,
-					ScaleType = Enum.ScaleType.Fit,
-					Visible = true
-				}, section)
-
-				offset = 24
-			end
+		local rendered = renderIcon(section, icon, {
+			Name = "SectionIcon",
+			Position = UDim2.fromOffset(0, 3),
+			Size = UDim2.fromOffset(18, 18),
+			Color = Theme.AccentSoft,
+			TextSize = 16
+		})
+		if rendered then
+			offset = 24
 		end
 	end
 
@@ -1445,20 +1294,12 @@ function Lib:CreateButton(parent, text, callback)
 	corner(button, 9)
 	stroke(button, Theme.Stroke, 0.4)
 	button.MouseEnter:Connect(function()
-		TweenService:Create(button, Fast, {
-			BackgroundColor3 = Theme.SurfaceHi,
-			BackgroundTransparency = 0.12
-		}):Play()
+		TweenService:Create(button, Fast, { BackgroundColor3 = Theme.SurfaceHi, BackgroundTransparency = 0.12 }):Play()
 	end)
 	button.MouseLeave:Connect(function()
-		TweenService:Create(button, Fast, {
-			BackgroundColor3 = Theme.SurfaceAlt,
-			BackgroundTransparency = 0.25
-		}):Play()
+		TweenService:Create(button, Fast, { BackgroundColor3 = Theme.SurfaceAlt, BackgroundTransparency = 0.25 }):Play()
 	end)
-	button.MouseButton1Click:Connect(function()
-		safeCall(callback)
-	end)
+	button.MouseButton1Click:Connect(function() safeCall(callback) end)
 	refreshPage(page)
 	return button
 end
@@ -1483,20 +1324,19 @@ function Lib:CreateToggle(parent, text, default, callback)
 	row.BorderSizePixel = 0
 	corner(row, 9)
 
-	local icon
+	local iconObject
 	if config and config.Icon then
-		icon = make("ImageLabel", {
+		local iconData = Lib:GetCustomIcon(config.Icon)
+		iconObject = renderIcon(row, iconData, {
 			Name = "Icon",
-			Position = UDim2.fromOffset(10, 9),
+			Position = UDim2.fromOffset(10, config.Description and 17 or 9),
 			Size = UDim2.fromOffset(24, 24),
-			BackgroundTransparency = 1,
-			Image = tostring(config.Icon),
-			ImageColor3 = Theme.AccentSoft,
-			ScaleType = Enum.ScaleType.Fit
-		}, row)
+			Color = Theme.AccentSoft,
+			TextSize = 20
+		})
 	end
 
-	local leftOffset = icon and 42 or 12
+	local leftOffset = iconObject and 42 or 12
 
 	make("TextLabel", {
 		Name = "Label",
@@ -1552,49 +1392,28 @@ function Lib:CreateToggle(parent, text, default, callback)
 	local function apply(state, fire)
 		active = state == true
 		row:SetAttribute("MikuValue", active)
-
-		TweenService:Create(track, Fast, {
-			BackgroundColor3 = active and Theme.Accent or Theme.SurfaceHi
-		}):Play()
-
-		TweenService:Create(knob, Normal, {
-			Position = active and UDim2.new(1, -19, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)
-		}):Play()
-
-		if fire then
-			safeCall(callback, active)
-		end
+		TweenService:Create(track, Fast, { BackgroundColor3 = active and Theme.Accent or Theme.SurfaceHi }):Play()
+		TweenService:Create(knob, Normal, { Position = active and UDim2.new(1, -19, 0.5, 0) or UDim2.new(0, 3, 0.5, 0) }):Play()
+		if fire then safeCall(callback, active) end
 	end
 
 	row.MouseEnter:Connect(function()
 		if not disabled then
-			TweenService:Create(row, Fast, {
-				BackgroundTransparency = 0.82
-			}):Play()
+			TweenService:Create(row, Fast, { BackgroundTransparency = 0.82 }):Play()
 		end
 	end)
-
 	row.MouseLeave:Connect(function()
-		TweenService:Create(row, Fast, {
-			BackgroundTransparency = 1
-		}):Play()
+		TweenService:Create(row, Fast, { BackgroundTransparency = 1 }):Play()
 	end)
-
 	row.MouseButton1Click:Connect(function()
-		if not disabled then
-			apply(not active, true)
-		end
+		if not disabled then apply(not active, true) end
 	end)
 
 	apply(active, false)
 
 	registerControl(row, {
-		SetValue = function(value)
-			apply(value, true)
-		end,
-		GetValue = function()
-			return active
-		end,
+		SetValue = function(value) apply(value, true) end,
+		GetValue = function() return active end,
 		SetDisabled = function(value)
 			disabled = value
 			row.Active = not value
@@ -1649,16 +1468,10 @@ function Lib:CreateCheckbox(parent, text, default, callback)
 		mark.Visible = value
 		box.BackgroundColor3 = value and Theme.Accent or Theme.SurfaceHi
 		row:SetAttribute("MikuValue", value)
-
-		if fire then
-			safeCall(callback, value)
-		end
+		if fire then safeCall(callback, value) end
 	end
 
-	row.MouseButton1Click:Connect(function()
-		apply(not value, true)
-	end)
-
+	row.MouseButton1Click:Connect(function() apply(not value, true) end)
 	apply(value, false)
 
 	registerControl(row, {
@@ -1733,9 +1546,7 @@ function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callba
 
 	local minNumber = tonumber(minValue) or 0
 	local maxNumber = tonumber(maxValue) or 100
-	if maxNumber <= minNumber then
-		maxNumber = minNumber + 1
-	end
+	if maxNumber <= minNumber then maxNumber = minNumber + 1 end
 	local value = math.clamp(tonumber(defaultValue) or minNumber, minNumber, maxNumber)
 	local dragging = false
 	local moveConnection
@@ -1748,21 +1559,13 @@ function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callba
 		knob.Position = UDim2.new(fraction, 0, 0.5, 0)
 		valueLabel.Text = formatValue(value)
 		frame:SetAttribute("MikuValue", value)
-		if fire then
-			safeCall(callback, value)
-		end
+		if fire then safeCall(callback, value) end
 	end
 
 	local function stop()
 		dragging = false
-		if moveConnection then
-			moveConnection:Disconnect()
-			moveConnection = nil
-		end
-		if endConnection then
-			endConnection:Disconnect()
-			endConnection = nil
-		end
+		if moveConnection then moveConnection:Disconnect() moveConnection = nil end
+		if endConnection then endConnection:Disconnect() endConnection = nil end
 	end
 
 	local function fromX(positionX)
@@ -1771,9 +1574,7 @@ function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callba
 	end
 
 	track.InputBegan:Connect(function(input)
-		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
-			return
-		end
+		if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
 		stop()
 		dragging = true
 		apply(fromX(input.Position.X), true)
@@ -1783,19 +1584,15 @@ function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callba
 			end
 		end)
 		endConnection = UserInputService.InputEnded:Connect(function(changed)
-			if changed.UserInputType == Enum.UserInputType.MouseButton1 or changed.UserInputType == Enum.UserInputType.Touch then
-				stop()
-			end
+			if changed.UserInputType == Enum.UserInputType.MouseButton1 or changed.UserInputType == Enum.UserInputType.Touch then stop() end
 		end)
 	end)
 
 	apply(value, false)
-
 	registerControl(frame, {
 		SetValue = function(v) apply(v, true) end,
 		GetValue = function() return value end
 	})
-
 	refreshPage(page)
 	return frame
 end
@@ -1842,24 +1639,15 @@ function Lib:CreateTextBox(parent, text, placeholder, defaultValue, callback)
 	}, frame)
 	corner(box, 8)
 	stroke(box, Theme.Stroke, 0.4)
-	make("UIPadding", {
-		PaddingLeft = UDim.new(0, 8),
-		PaddingRight = UDim.new(0, 8)
-	}, box)
-	box.FocusLost:Connect(function()
-		safeCall(callback, box.Text)
-	end)
-
+	make("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) }, box)
+	box.FocusLost:Connect(function() safeCall(callback, box.Text) end)
 	registerControl(box, {
 		SetValue = function(v)
 			box.Text = tostring(v or "")
 			safeCall(callback, box.Text)
 		end,
-		GetValue = function()
-			return box.Text
-		end
+		GetValue = function() return box.Text end
 	})
-
 	refreshPage(page)
 	return box
 end
@@ -1876,7 +1664,6 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 		callback = default
 		default = nil
 	end
-
 	options = type(options) == "table" and options or {}
 
 	local multi = config and config.Multi == true
@@ -1885,15 +1672,11 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 
 	if multi then
 		if type(default) == "table" then
-			for _, value in ipairs(default) do
-				selected[value] = true
-			end
+			for _, value in ipairs(default) do selected[value] = true end
 		end
 	else
 		selected = default
-		if selected == nil then
-			selected = options[1]
-		end
+		if selected == nil then selected = options[1] end
 	end
 
 	local control, page = prepareControl(parent, 42, "Frame")
@@ -2007,31 +1790,22 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 		if multi then
 			local values = {}
 			for _, option in ipairs(options) do
-				if selected[option] then
-					table.insert(values, tostring(option))
-				end
+				if selected[option] then table.insert(values, tostring(option)) end
 			end
 			return #values > 0 and table.concat(values, ", ") or "Nenhum"
 		end
 		return selected ~= nil and tostring(selected) or "Nenhum"
 	end
 
-	local function updateLabel()
-		valueLabel.Text = getText()
-	end
+	local function updateLabel() valueLabel.Text = getText() end
 
 	local function updateOptions()
 		for _, child in ipairs(optionsHolder:GetChildren()) do
-			if child:IsA("TextButton") then
-				child:Destroy()
-			end
+			if child:IsA("TextButton") then child:Destroy() end
 		end
-
 		optionButtons = {}
-
 		for index, option in ipairs(options) do
 			local isSelected = multi and selected[option] or selected == option
-
 			local optionButton = make("TextButton", {
 				Name = "Option_" .. index,
 				Size = UDim2.new(1, -4, 0, 30),
@@ -2047,25 +1821,18 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 				LayoutOrder = index,
 				ZIndex = 22
 			}, optionsHolder)
-
-			make("UIPadding", {
-				PaddingLeft = UDim.new(0, 9)
-			}, optionButton)
+			make("UIPadding", { PaddingLeft = UDim.new(0, 9) }, optionButton)
 			corner(optionButton, 6)
 
 			optionButton.MouseButton1Click:Connect(function()
-				if disabled then
-					return
-				end
+				if disabled then return end
 				if multi then
 					selected[option] = not selected[option] or nil
 					updateLabel()
 					updateOptions()
 					local values = {}
 					for _, item in ipairs(options) do
-						if selected[item] then
-							table.insert(values, item)
-						end
+						if selected[item] then table.insert(values, item) end
 					end
 					control:SetAttribute("MikuValue", #values)
 					safeCall(callback, values)
@@ -2079,55 +1846,36 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 			end)
 
 			optionButton.MouseEnter:Connect(function()
-				TweenService:Create(optionButton, Fast, {
-					BackgroundTransparency = 0.2
-				}):Play()
+				TweenService:Create(optionButton, Fast, { BackgroundTransparency = 0.2 }):Play()
 			end)
-
 			optionButton.MouseLeave:Connect(function()
 				local active = multi and selected[option] or selected == option
-				TweenService:Create(optionButton, Fast, {
-					BackgroundTransparency = active and 0.1 or 1
-				}):Play()
+				TweenService:Create(optionButton, Fast, { BackgroundTransparency = active and 0.1 or 1 }):Play()
 			end)
 
 			optionButtons[#optionButtons + 1] = optionButton
 		end
-
 		updateLabel()
 	end
 
 	setOpen = function(value)
 		opened = value
 		list.Visible = true
-
 		local count = #options
 		local height = opened and math.min(count * 33 + 10 + (searchable and 42 or 0), 190) or 0
-
-		TweenService:Create(list, Normal, {
-			Size = UDim2.new(1, 0, 0, height)
-		}):Play()
-
-		TweenService:Create(arrow, Fast, {
-			Rotation = opened and 180 or 0
-		}):Play()
-
+		TweenService:Create(list, Normal, { Size = UDim2.new(1, 0, 0, height) }):Play()
+		TweenService:Create(arrow, Fast, { Rotation = opened and 180 or 0 }):Play()
 		if not opened then
 			task.delay(0.21, function()
-				if not opened and list.Parent then
-					list.Visible = false
-				end
+				if not opened and list.Parent then list.Visible = false end
 			end)
 		end
-
 		control.Size = UDim2.new(1, 0, 0, opened and 48 + height or 42)
 		refreshPage(page)
 	end
 
 	row.MouseButton1Click:Connect(function()
-		if not disabled then
-			setOpen(not opened)
-		end
+		if not disabled then setOpen(not opened) end
 	end)
 
 	if searchBox then
@@ -2147,30 +1895,21 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 			if type(value) == "table" then
 				for _, item in ipairs(value) do
 					for _, option in ipairs(options) do
-						if option == item then
-							selected[item] = true
-						end
+						if option == item then selected[item] = true end
 					end
 				end
 			end
 		else
 			for _, option in ipairs(options) do
-				if option == value then
-					selected = value
-					break
-				end
+				if option == value then selected = value break end
 			end
 		end
-
 		updateOptions()
-
 		if fire then
 			if multi then
 				local values = {}
 				for _, option in ipairs(options) do
-					if selected[option] then
-						table.insert(values, option)
-					end
+					if selected[option] then table.insert(values, option) end
 				end
 				safeCall(callback, values)
 			else
@@ -2185,9 +1924,7 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 			if multi then
 				local values = {}
 				for _, option in ipairs(options) do
-					if selected[option] then
-						table.insert(values, option)
-					end
+					if selected[option] then table.insert(values, option) end
 				end
 				return values
 			end
@@ -2197,23 +1934,14 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 			disabled = value
 			row.Active = not value
 			row.BackgroundTransparency = value and 0.65 or 0.25
-		end
+		end,
+		SetOptions = function(newOptions)
+			options = type(newOptions) == "table" and newOptions or {}
+			updateOptions()
+			refreshPage(page)
+		end,
+		GetOptions = function() return options end
 	})
-
-	control.Set = function(_, value)
-		setValue(value, true)
-	end
-	control.Get = function()
-		return Lib:GetValue(control)
-	end
-	control.SetOptions = function(_, newOptions)
-		options = type(newOptions) == "table" and newOptions or {}
-		updateOptions()
-		refreshPage(page)
-	end
-	control.GetOptions = function()
-		return options
-	end
 
 	refreshPage(page)
 	return control
@@ -2226,9 +1954,7 @@ function Lib:CreateKeybind(parent, text, defaultKey, callback)
 		defaultKey = config.Default
 		callback = config.Callback
 	end
-
 	local frame, page = prepareControl(parent, 42, "Frame")
-
 	make("TextLabel", {
 		Position = UDim2.fromOffset(12, 0),
 		Size = UDim2.new(1, -120, 1, 0),
@@ -2239,7 +1965,6 @@ function Lib:CreateKeybind(parent, text, defaultKey, callback)
 		TextColor3 = Theme.Text,
 		TextXAlignment = Enum.TextXAlignment.Left
 	}, frame)
-
 	local button = make("TextButton", {
 		Position = UDim2.new(1, -105, 0.5, -14),
 		Size = UDim2.fromOffset(93, 28),
@@ -2253,59 +1978,34 @@ function Lib:CreateKeybind(parent, text, defaultKey, callback)
 	}, frame)
 	corner(button, 7)
 	stroke(button, Theme.Stroke, 0.4)
-
 	local currentKey = defaultKey or Enum.KeyCode.RightShift
 	local listening = false
 	local disabled = false
-
 	local function update()
 		button.Text = currentKey and currentKey.Name or "None"
 		button.TextColor3 = Theme.AccentSoft
 		frame:SetAttribute("MikuKeybind", button.Text)
 	end
-
 	update()
-
 	button.MouseButton1Click:Connect(function()
-		if disabled then
-			return
-		end
+		if disabled then return end
 		listening = true
 		button.Text = "Pressione..."
 		button.TextColor3 = Theme.Success
 	end)
-
 	local connection = UserInputService.InputBegan:Connect(function(input, processed)
 		if listening then
-			if input.UserInputType ~= Enum.UserInputType.Keyboard then
-				return
-			end
+			if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 			listening = false
-
-			if input.KeyCode == Enum.KeyCode.Escape then
-				update()
-				return
-			end
-			if input.KeyCode == Enum.KeyCode.Backspace then
-				currentKey = nil
-				update()
-				return
-			end
-
+			if input.KeyCode == Enum.KeyCode.Escape then update() return end
+			if input.KeyCode == Enum.KeyCode.Backspace then currentKey = nil update() return end
 			currentKey = input.KeyCode
 			update()
 			return
 		end
-
-		if disabled or processed or UserInputService:GetFocusedTextBox() then
-			return
-		end
-
-		if currentKey and input.KeyCode == currentKey then
-			safeCall(callback, currentKey)
-		end
+		if disabled or processed or UserInputService:GetFocusedTextBox() then return end
+		if currentKey and input.KeyCode == currentKey then safeCall(callback, currentKey) end
 	end)
-
 	registerControl(frame, {
 		SetValue = function(key)
 			if typeof(key) == "EnumItem" and key.EnumType == Enum.KeyCode then
@@ -2313,26 +2013,19 @@ function Lib:CreateKeybind(parent, text, defaultKey, callback)
 				update()
 			end
 		end,
-		GetValue = function()
-			return currentKey
-		end,
+		GetValue = function() return currentKey end,
 		SetDisabled = function(value)
 			disabled = value
 			button.TextTransparency = value and 0.5 or 0
 		end
 	})
-
-	frame.Destroying:Connect(function()
-		connection:Disconnect()
-	end)
-
+	frame.Destroying:Connect(function() connection:Disconnect() end)
 	refreshPage(page)
 	return frame
 end
 
 function Lib:CreateColorPicker(parent, text, default, callback)
 	local frame, page = prepareControl(parent, 42, "Frame")
-
 	make("TextLabel", {
 		Position = UDim2.fromOffset(12, 0),
 		Size = UDim2.new(1, -65, 1, 0),
@@ -2343,10 +2036,8 @@ function Lib:CreateColorPicker(parent, text, default, callback)
 		TextColor3 = Theme.Text,
 		TextXAlignment = Enum.TextXAlignment.Left
 	}, frame)
-
 	local color = typeof(default) == "Color3" and default or Theme.Accent
 	local hue, saturation, value = color:ToHSV()
-
 	local button = make("TextButton", {
 		Position = UDim2.new(1, -48, 0.5, -13),
 		Size = UDim2.fromOffset(36, 26),
@@ -2357,7 +2048,6 @@ function Lib:CreateColorPicker(parent, text, default, callback)
 	}, frame)
 	corner(button, 7)
 	stroke(button, Theme.Stroke, 0.35)
-
 	local popup = make("Frame", {
 		Position = UDim2.new(1, -190, 1, 5),
 		Size = UDim2.fromOffset(190, 0),
@@ -2374,10 +2064,7 @@ function Lib:CreateColorPicker(parent, text, default, callback)
 		color = Color3.fromHSV(hue, saturation, value)
 		button.BackgroundColor3 = color
 		frame:SetAttribute("MikuColor", color:ToHex())
-
-		if fire then
-			safeCall(callback, color)
-		end
+		if fire then safeCall(callback, color) end
 	end
 
 	local function createColorSlider(name, y, initial, changed)
@@ -2392,7 +2079,6 @@ function Lib:CreateColorPicker(parent, text, default, callback)
 			TextXAlignment = Enum.TextXAlignment.Left,
 			ZIndex = 31
 		}, popup)
-
 		local track = make("TextButton", {
 			Position = UDim2.fromOffset(52, y + 5),
 			Size = UDim2.new(1, -62, 0, 10),
@@ -2403,7 +2089,6 @@ function Lib:CreateColorPicker(parent, text, default, callback)
 			ZIndex = 31
 		}, popup)
 		corner(track, 5)
-
 		local fill = make("Frame", {
 			Size = UDim2.new(initial, 0, 1, 0),
 			BackgroundColor3 = Theme.Accent,
@@ -2411,31 +2096,24 @@ function Lib:CreateColorPicker(parent, text, default, callback)
 			ZIndex = 32
 		}, track)
 		corner(fill, 5)
-
 		local dragging = false
 		local moveConnection
 		local endConnection
-
 		local function setFromX(x)
 			local fraction = math.clamp((x - track.AbsolutePosition.X) / math.max(1, track.AbsoluteSize.X), 0, 1)
 			fill.Size = UDim2.new(fraction, 0, 1, 0)
 			changed(fraction)
 			updateColor(true)
 		end
-
 		track.InputBegan:Connect(function(input)
-			if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
-				return
-			end
+			if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
 			dragging = true
 			setFromX(input.Position.X)
-
 			moveConnection = UserInputService.InputChanged:Connect(function(changedInput)
 				if dragging and (changedInput.UserInputType == Enum.UserInputType.MouseMovement or changedInput.UserInputType == Enum.UserInputType.Touch) then
 					setFromX(changedInput.Position.X)
 				end
 			end)
-
 			endConnection = UserInputService.InputEnded:Connect(function(changedInput)
 				if changedInput.UserInputType == Enum.UserInputType.MouseButton1 or changedInput.UserInputType == Enum.UserInputType.Touch then
 					dragging = false
@@ -2452,9 +2130,7 @@ function Lib:CreateColorPicker(parent, text, default, callback)
 
 	button.MouseButton1Click:Connect(function()
 		popup.Visible = not popup.Visible
-		TweenService:Create(popup, Normal, {
-			Size = UDim2.fromOffset(190, popup.Visible and 112 or 0)
-		}):Play()
+		TweenService:Create(popup, Normal, { Size = UDim2.fromOffset(190, popup.Visible and 112 or 0) }):Play()
 	end)
 
 	registerControl(frame, {
@@ -2465,9 +2141,7 @@ function Lib:CreateColorPicker(parent, text, default, callback)
 				updateColor(true)
 			end
 		end,
-		GetValue = function()
-			return color
-		end
+		GetValue = function() return color end
 	})
 
 	updateColor(false)
@@ -2480,43 +2154,51 @@ function Lib:CreateIcon(parent, iconName, size, callback)
 	local page = getPageFrom(host)
 	local icon = self:GetCustomIcon(iconName)
 	local isButton = type(callback) == "function"
-	local object = make(isButton and "ImageButton" or "ImageLabel", {
-		Name = "Icon",
-		Size = typeof(size) == "UDim2" and size or UDim2.fromOffset(32, 32),
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		ScaleType = Enum.ScaleType.Fit,
-		AutoButtonColor = false,
-		LayoutOrder = host and nextLayoutOrder(host) or 0
-	}, host)
 
+	local object
 	if icon then
-		if icon.FontFace and icon.Text then
-			object:Destroy()
-			object = make(isButton and "TextButton" or "TextLabel", {
+		local baseClass = isButton and "TextButton" or "TextLabel"
+		if icon.FontFace or (icon.Font and icon.Text) then
+			local props = {
 				Name = "Icon",
 				Size = typeof(size) == "UDim2" and size or UDim2.fromOffset(32, 32),
 				BackgroundTransparency = 1,
 				BorderSizePixel = 0,
-				FontFace = icon.FontFace,
-				Text = icon.Text,
+				Text = icon.Text or "",
 				TextColor3 = Theme.Text,
 				TextSize = 22,
 				AutoButtonColor = false,
 				LayoutOrder = host and nextLayoutOrder(host) or 0
+			}
+			if icon.FontFace then
+				props.FontFace = icon.FontFace
+			else
+				props.Font = icon.Font
+			end
+			object = make(baseClass, props, host)
+		elseif icon.Url then
+			object = make(isButton and "ImageButton" or "ImageLabel", {
+				Name = "Icon",
+				Size = typeof(size) == "UDim2" and size or UDim2.fromOffset(32, 32),
+				BackgroundTransparency = 1,
+				BorderSizePixel = 0,
+				Image = icon.Url,
+				ImageColor3 = Theme.Text,
+				ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
+				ImageRectSize = icon.ImageRectSize or Vector2.zero,
+				ScaleType = Enum.ScaleType.Fit,
+				AutoButtonColor = false,
+				LayoutOrder = host and nextLayoutOrder(host) or 0
 			}, host)
-		else
-			object.Image = icon.Url or ""
-			object.ImageColor3 = Theme.Text
-			object.ImageRectOffset = icon.ImageRectOffset or Vector2.zero
-			object.ImageRectSize = icon.ImageRectSize or Vector2.zero
 		end
 	end
 
+	if not object then
+		return nil
+	end
+
 	if isButton then
-		object.MouseButton1Click:Connect(function()
-			safeCall(callback)
-		end)
+		object.MouseButton1Click:Connect(function() safeCall(callback) end)
 	end
 
 	refreshPage(page)
@@ -2583,16 +2265,8 @@ function Lib:Notify(title, text, duration)
 	}, stack)
 	corner(card, 12)
 	stroke(card, Theme.Stroke, 0.3)
-	local scale = make("UIScale", {
-		Name = "Scale",
-		Scale = 0.96
-	}, card)
-	make("Frame", {
-		Name = "Accent",
-		Size = UDim2.new(0, 4, 1, 0),
-		BackgroundColor3 = Theme.Accent,
-		BorderSizePixel = 0
-	}, card)
+	local scale = make("UIScale", { Name = "Scale", Scale = 0.96 }, card)
+	make("Frame", { Name = "Accent", Size = UDim2.new(0, 4, 1, 0), BackgroundColor3 = Theme.Accent, BorderSizePixel = 0 }, card)
 	make("TextLabel", {
 		Name = "Title",
 		Position = UDim2.fromOffset(14, 9),
@@ -2633,27 +2307,15 @@ function Lib:Notify(title, text, duration)
 		BackgroundColor3 = Theme.Accent,
 		BorderSizePixel = 0
 	}, progressBackground)
-	TweenService:Create(card, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		GroupTransparency = 0
-	}):Play()
-	TweenService:Create(scale, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-		Scale = 1
-	}):Play()
-	TweenService:Create(progress, TweenInfo.new(math.max(0.1, duration), Enum.EasingStyle.Linear), {
-		Size = UDim2.new(0, 0, 1, 0)
-	}):Play()
+	TweenService:Create(card, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { GroupTransparency = 0 }):Play()
+	TweenService:Create(scale, TweenInfo.new(0.26, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+	TweenService:Create(progress, TweenInfo.new(math.max(0.1, duration), Enum.EasingStyle.Linear), { Size = UDim2.new(0, 0, 1, 0) }):Play()
 	task.delay(math.max(0.1, duration), function()
-		if not card.Parent then
-			return
-		end
-		local fade = TweenService:Create(card, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			GroupTransparency = 1
-		})
+		if not card.Parent then return end
+		local fade = TweenService:Create(card, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { GroupTransparency = 1 })
 		fade:Play()
 		fade.Completed:Connect(function()
-			if card.Parent then
-				card:Destroy()
-			end
+			if card.Parent then card:Destroy() end
 		end)
 	end)
 	return card
@@ -2664,9 +2326,7 @@ local function ensureWatermarkGui()
 		return Lib._watermarkGui
 	end
 	local old = PlayerGui:FindFirstChild("MikuWatermark")
-	if old then
-		old:Destroy()
-	end
+	if old then old:Destroy() end
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "MikuWatermark"
 	gui.DisplayOrder = 10001
@@ -2674,24 +2334,17 @@ local function ensureWatermarkGui()
 	gui.ResetOnSpawn = false
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	gui.Parent = PlayerGui
-
 	Lib._watermarkGui = gui
 	return gui
 end
 
 function Lib:CreateWatermark(config)
 	if type(config) ~= "table" then
-		config = {
-			Text = tostring(config or "MikuLib")
-		}
+		config = { Text = tostring(config or "MikuLib") }
 	end
-
 	local gui = ensureWatermarkGui()
 	local old = gui:FindFirstChild("Watermark")
-	if old then
-		old:Destroy()
-	end
-
+	if old then old:Destroy() end
 	local frame = Instance.new("Frame")
 	frame.Name = "Watermark"
 	frame.Position = config.Position or UDim2.fromOffset(16, 16)
@@ -2702,9 +2355,7 @@ function Lib:CreateWatermark(config)
 	frame.Active = true
 	frame.Visible = true
 	frame.Parent = gui
-
 	corner(frame, 8)
-
 	local label = Instance.new("TextLabel")
 	label.Name = "Text"
 	label.Position = UDim2.fromOffset(12, 0)
@@ -2719,76 +2370,46 @@ function Lib:CreateWatermark(config)
 	label.TextYAlignment = Enum.TextYAlignment.Center
 	label.TextTruncate = Enum.TextTruncate.AtEnd
 	label.Parent = frame
-
 	local drag
 	if config.Draggable == true and type(Lib.newDraggable) == "function" then
-		local success, result = pcall(function()
-			return Lib.newDraggable(frame, frame, false)
-		end)
-		if success then
-			drag = result
-		end
+		local success, result = pcall(function() return Lib.newDraggable(frame, frame, false) end)
+		if success then drag = result end
 	end
-
 	local api = {}
 	local destroyed = false
-
 	function api.SetText(selfOrValue, maybeValue)
 		if destroyed then return end
 		local value = maybeValue
-		if value == nil then
-			value = selfOrValue
-		end
+		if value == nil then value = selfOrValue end
 		label.Text = tostring(value or "")
 	end
-
 	function api.SetVisible(selfOrValue, maybeValue)
 		if destroyed then return end
 		local value = maybeValue
-		if value == nil then
-			value = selfOrValue
-		end
+		if value == nil then value = selfOrValue end
 		frame.Visible = value == true
 	end
-
 	function api.Destroy()
 		if destroyed then return end
 		destroyed = true
-
 		if drag then
 			pcall(function()
-				if type(drag) == "table" and type(drag.Destroy) == "function" then
-					drag:Destroy()
-				elseif typeof(drag) == "RBXScriptConnection" then
-					drag:Disconnect()
-				elseif type(drag) == "function" then
-					drag()
-				end
+				if type(drag) == "table" and type(drag.Destroy) == "function" then drag:Destroy()
+				elseif typeof(drag) == "RBXScriptConnection" then drag:Disconnect()
+				elseif type(drag) == "function" then drag() end
 			end)
 		end
-
 		for i = #Lib._watermarks, 1, -1 do
-			if Lib._watermarks[i] == api then
-				table.remove(Lib._watermarks, i)
-			end
+			if Lib._watermarks[i] == api then table.remove(Lib._watermarks, i) end
 		end
-
-		if frame.Parent then
-			frame:Destroy()
-		end
+		if frame.Parent then frame:Destroy() end
 	end
-
 	table.insert(Lib._watermarks, api)
 	return api
 end
 
-function Lib:Watermark(config)
-	return self:CreateWatermark(config)
-end
-
-function Lib:termark(config)
-	return self:CreateWatermark(config)
-end
+function Lib:Watermark(config) return self:CreateWatermark(config) end
+function Lib:termark(config) return self:CreateWatermark(config) end
 
 function Lib:DestroyAll()
 	local windows = self.Windows
@@ -2796,9 +2417,7 @@ function Lib:DestroyAll()
 	for index = #windows, 1, -1 do
 		local window = windows[index]
 		if window and type(window.Destroy) == "function" then
-			pcall(function()
-				window:Destroy()
-			end)
+			pcall(function() window:Destroy() end)
 		end
 	end
 	local watermarks = self._watermarks
@@ -2806,42 +2425,23 @@ function Lib:DestroyAll()
 	for index = #watermarks, 1, -1 do
 		local watermark = watermarks[index]
 		if watermark and type(watermark.Destroy) == "function" then
-			pcall(function()
-				watermark:Destroy()
-			end)
+			pcall(function() watermark:Destroy() end)
 		end
 	end
-	if self._notifyGui then
-		pcall(function()
-			self._notifyGui:Destroy()
-		end)
-	end
+	if self._notifyGui then pcall(function() self._notifyGui:Destroy() end) end
 	self._notifyGui = nil
 	self._notifyStack = nil
-	if self._watermarkGui then
-		pcall(function()
-			self._watermarkGui:Destroy()
-		end)
-	end
+	if self._watermarkGui then pcall(function() self._watermarkGui:Destroy() end) end
 	self._watermarkGui = nil
 	local sharedTable = getShared(false)
-	if sharedTable then
-		sharedTable.MikuLibInstance = nil
-	end
+	if sharedTable then sharedTable.MikuLibInstance = nil end
 end
 
-function Lib:CloseAll()
-	self:DestroyAll()
-end
-
-function Lib:Destroy()
-	self:DestroyAll()
-end
+function Lib:CloseAll() self:DestroyAll() end
+function Lib:Destroy() self:DestroyAll() end
 
 function Lib.new(a, b)
-	if a == Lib then
-		return Lib:CreateWindow(b)
-	end
+	if a == Lib then return Lib:CreateWindow(b) end
 	return Lib:CreateWindow(a)
 end
 
@@ -2858,141 +2458,64 @@ local function getConfigPath(name)
 end
 
 function Lib:RegisterConfigValue(name, getter, setter)
-	if type(name) ~= "string" then
-		return false
-	end
-
-	Lib.Configs[name] = {
-		Get = getter,
-		Set = setter
-	}
-
+	if type(name) ~= "string" then return false end
+	Lib.Configs[name] = { Get = getter, Set = setter }
 	return true
 end
 
 function Lib:SaveConfig(name)
 	name = tostring(name or "Default")
-
-	if not isfolder(self.ConfigFolder) then
-		makefolder(self.ConfigFolder)
-	end
-
+	if not isfolder(self.ConfigFolder) then makefolder(self.ConfigFolder) end
 	local data = {}
-
 	for key, control in pairs(self.Configs) do
 		if type(control.Get) == "function" then
 			local success, value = pcall(control.Get)
-
-			if success then
-				data[key] = value
-			end
+			if success then data[key] = value end
 		end
 	end
-
-	local success, encoded = pcall(function()
-		return HttpService:JSONEncode(data)
-	end)
-
-	if not success then
-		return false
-	end
-
-	return pcall(function()
-		writefile(getConfigPath(name), encoded)
-	end)
+	local success, encoded = pcall(function() return HttpService:JSONEncode(data) end)
+	if not success then return false end
+	return pcall(function() writefile(getConfigPath(name), encoded) end)
 end
 
 function Lib:LoadConfig(name)
 	local path = getConfigPath(name or "Default")
-
-	if not isfile(path) then
-		return false
-	end
-
-	local success, data = pcall(function()
-		return HttpService:JSONDecode(readfile(path))
-	end)
-
-	if not success or type(data) ~= "table" then
-		return false
-	end
-
+	if not isfile(path) then return false end
+	local success, data = pcall(function() return HttpService:JSONDecode(readfile(path)) end)
+	if not success or type(data) ~= "table" then return false end
 	for key, value in pairs(data) do
 		local control = self.Configs[key]
-
-		if control and type(control.Set) == "function" then
-			pcall(control.Set, value)
-		end
+		if control and type(control.Set) == "function" then pcall(control.Set, value) end
 	end
-
 	return true
 end
 
 function Lib:DeleteConfig(name)
 	local path = getConfigPath(name or "Default")
-
-	if isfile(path) then
-		return pcall(delfile, path)
-	end
-
+	if isfile(path) then return pcall(delfile, path) end
 	return false
 end
 
 function Lib:GetConfigs()
-	if not isfolder(self.ConfigFolder) then
-		makefolder(self.ConfigFolder)
-	end
-
+	if not isfolder(self.ConfigFolder) then makefolder(self.ConfigFolder) end
 	local configs = {}
-
 	for _, path in ipairs(listfiles(self.ConfigFolder)) do
 		local configName = path:match("([^/\\]+)%.json$")
-
-		if configName then
-			table.insert(configs, configName)
-		end
+		if configName then table.insert(configs, configName) end
 	end
-
 	return configs
 end
 
 function Lib:SetAutoSave(enabled, interval)
 	self.AutoSave = enabled == true
-
-	if interval then
-		self.AutoSaveInterval = math.max(3, tonumber(interval) or 10)
-	end
+	if interval then self.AutoSaveInterval = math.max(3, tonumber(interval) or 10) end
 end
 
 task.spawn(function()
 	while true do
 		task.wait(Lib.AutoSaveInterval)
-
 		if Lib.AutoSave then
-			pcall(function()
-				Lib:SaveConfig(Lib.AutoSaveName)
-			end)
-		end
-	end
-end)
-
-Lib.AutoSave = false
-Lib.AutoSaveInterval = 10
-Lib.AutoSaveName = "Default"
-
-function Lib:SetAutoSave(enabled, interval)
-	self.AutoSave = enabled == true
-	self.AutoSaveInterval = math.max(3, tonumber(interval) or 10)
-end
-
-task.spawn(function()
-	while true do
-		task.wait(Lib.AutoSaveInterval)
-
-		if Lib.AutoSave then
-			pcall(function()
-				Lib:SaveConfig(Lib.AutoSaveName)
-			end)
+			pcall(function() Lib:SaveConfig(Lib.AutoSaveName) end)
 		end
 	end
 end)
