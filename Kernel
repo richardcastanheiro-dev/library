@@ -262,20 +262,20 @@ function Lib.newResize(target, callback)
 	handle.Parent = target
 	handle.AnchorPoint = Vector2.new(1, 1)
 	handle.Position = UDim2.new(1, -4, 1, -4)
-	handle.Size = UDim2.fromOffset(28, 28)
+	handle.Size = UDim2.fromOffset(30, 30)
 	handle.BackgroundColor3 = Theme.Bg
 	handle.BackgroundTransparency = 0.35
 	handle.BorderSizePixel = 0
 	handle.Text = "⤡"
 	handle.TextColor3 = Theme.TextDim
-	handle.TextSize = 18
+	handle.TextSize = 22
 	handle.Font = Enum.Font.GothamBold
 	handle.AutoButtonColor = false
 	handle.Active = true
 	handle.Selectable = false
 	handle.ZIndex = 999
 	corner(handle, 6)
-	stroke(handle, Theme.Stroke, 0.5)
+	stroke(handle, Theme.Stroke, 0.55)
 
 	local function stop()
 		dragging = false
@@ -425,7 +425,7 @@ end
 function Window:Minimize()
 	if self._destroyed then return end
 	self._minimized = not self._minimized
-	local target = self._minimized and UDim2.new(1, 0, 0, 52) or UDim2.fromScale(1, 1)
+	local target = self._minimized and UDim2.new(1, 0, 0, 55) or UDim2.fromScale(1, 1)
 	TweenService:Create(self._root, Normal, { Size = target }):Play()
 end
 
@@ -498,11 +498,11 @@ function Window:SelectTab(target)
 		item.Label.TextColor3 = active and Theme.Text or Theme.TextDim
 		item.Label.Font = active and Enum.Font.GothamBold or Enum.Font.GothamMedium
 		item.Button.BackgroundColor3 = active and Theme.Accent or Theme.SurfaceAlt
-		item.Button.BackgroundTransparency = active and 0.85 or 0.6
+		item.Button.BackgroundTransparency = active and 0.82 or 0.55
 		local itemStroke = item.Button:FindFirstChildOfClass("UIStroke")
 		if itemStroke then
 			itemStroke.Color = active and Theme.Accent or Theme.Stroke
-			itemStroke.Transparency = active and 0.55 or 0.6
+			itemStroke.Transparency = active and 0.35 or 0.45
 		end
 		local tabIcon = item.Button:FindFirstChild("TabIcon")
 		if tabIcon then
@@ -536,7 +536,7 @@ function Window:CreateTab(name, iconName)
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 		ScrollBarThickness = 3,
 		ScrollBarImageColor3 = Theme.Accent,
-		ScrollBarImageTransparency = 0.3,
+		ScrollBarImageTransparency = 0.2,
 		Visible = false,
 		ClipsDescendants = true
 	}, self._content)
@@ -559,19 +559,19 @@ function Window:CreateTab(name, iconName)
 
 	local tabButton = make("TextButton", {
 		Name = name .. "Tab",
-		Size = UDim2.new(1, 0, 0, 40),
+		Size = UDim2.new(1, 0, 0, 42),
 		BackgroundColor3 = Theme.SurfaceAlt,
-		BackgroundTransparency = 0.6,
+		BackgroundTransparency = 0.55,
 		AutoButtonColor = false,
 		Text = "",
 		BorderSizePixel = 0
 	}, self._tabList)
-	corner(tabButton, 8)
-	stroke(tabButton, Theme.Stroke, 0.6)
+	corner(tabButton, 9)
+	stroke(tabButton, Theme.Stroke, 0.45)
 
 	local indicator = make("Frame", {
 		Name = "Indicator",
-		Size = UDim2.fromOffset(3, 18),
+		Size = UDim2.fromOffset(3, 20),
 		Position = UDim2.fromOffset(0, 11),
 		BackgroundColor3 = Theme.Accent,
 		BorderSizePixel = 0,
@@ -586,7 +586,7 @@ function Window:CreateTab(name, iconName)
 		BackgroundTransparency = 1,
 		Text = name,
 		Font = Enum.Font.GothamMedium,
-		TextSize = 13,
+		TextSize = 14,
 		TextColor3 = Theme.TextDim,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
@@ -600,7 +600,7 @@ function Window:CreateTab(name, iconName)
 				Name = "TabIcon",
 				AnchorPoint = Vector2.new(0, 0.5),
 				Position = UDim2.new(0, 10, 0.5, 0),
-				Size = UDim2.fromOffset(16, 16),
+				Size = UDim2.fromOffset(18, 18),
 				BackgroundTransparency = 1,
 				ScaleType = Enum.ScaleType.Fit,
 				Image = icon.Url or "",
@@ -608,7 +608,7 @@ function Window:CreateTab(name, iconName)
 				ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
 				ImageRectSize = icon.ImageRectSize or Vector2.zero
 			}, tabButton)
-			label.Position = UDim2.fromOffset(34, 0)
+			label.Position = UDim2.fromOffset(36, 0)
 			label.Size = UDim2.new(1, -42, 1, 0)
 		end
 	end
@@ -626,13 +626,13 @@ function Window:CreateTab(name, iconName)
 	tabButton.MouseEnter:Connect(function()
 		if not entry.Active then
 			tabButton.BackgroundColor3 = Theme.SurfaceHi
-			tabButton.BackgroundTransparency = 0.45
+			tabButton.BackgroundTransparency = 0.42
 		end
 	end)
 	tabButton.MouseLeave:Connect(function()
 		if not entry.Active then
 			tabButton.BackgroundColor3 = Theme.SurfaceAlt
-			tabButton.BackgroundTransparency = 0.6
+			tabButton.BackgroundTransparency = 0.55
 		end
 	end)
 	tabButton.MouseButton1Click:Connect(function()
@@ -782,7 +782,7 @@ function Lib:CreateWindow(config)
 		Active = false
 	}, wrapper)
 	corner(root, 12)
-	stroke(root, Theme.Stroke, 0.35)
+	stroke(root, Theme.Stroke, 0.25)
 	self._root = root
 
 	local rootScale = make("UIScale", { Name = "Scale", Scale = 1 }, root)
@@ -790,7 +790,7 @@ function Lib:CreateWindow(config)
 
 	local topBar = make("Frame", {
 		Name = "TopBar",
-		Size = UDim2.new(1, 0, 0, 52),
+		Size = UDim2.new(1, 0, 0, 55),
 		BackgroundColor3 = Theme.Surface,
 		BorderSizePixel = 0
 	}, root)
@@ -800,7 +800,7 @@ function Lib:CreateWindow(config)
 		Position = UDim2.new(0, 0, 1, -1),
 		Size = UDim2.new(1, 0, 0, 1),
 		BackgroundColor3 = Theme.Stroke,
-		BackgroundTransparency = 0.4,
+		BackgroundTransparency = 0.3,
 		BorderSizePixel = 0
 	}, topBar)
 
@@ -811,7 +811,7 @@ function Lib:CreateWindow(config)
 		BackgroundTransparency = 1,
 		Text = "MikuLib",
 		Font = Enum.Font.GothamBold,
-		TextSize = 14,
+		TextSize = 15,
 		TextColor3 = Theme.Text,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
@@ -821,11 +821,11 @@ function Lib:CreateWindow(config)
 
 	local subtitleLabel = make("TextLabel", {
 		Name = "Subtitle",
-		Position = UDim2.fromOffset(18, 28),
+		Position = UDim2.fromOffset(18, 29),
 		Size = UDim2.new(1, -120, 0, 14),
 		BackgroundTransparency = 1,
 		Text = "v" .. Lib.Version .. " • Obsidian",
-		Font = Enum.Font.Gotham,
+		Font = Enum.Font.GothamMedium,
 		TextSize = 11,
 		TextColor3 = Theme.TextDim,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -836,22 +836,22 @@ function Lib:CreateWindow(config)
 
 	local minButton = make("TextButton", {
 		Name = "MinimizeButton",
-		Position = UDim2.new(1, -70, 0.5, -13),
-		Size = UDim2.fromOffset(26, 26),
+		Position = UDim2.new(1, -72, 0.5, -14),
+		Size = UDim2.fromOffset(28, 28),
 		BackgroundColor3 = Theme.Accent,
 		BackgroundTransparency = 1,
 		Text = "−",
 		TextColor3 = Theme.TextDim,
 		Font = Enum.Font.GothamBold,
-		TextSize = 16,
+		TextSize = 18,
 		AutoButtonColor = false,
 		BorderSizePixel = 0,
 		ZIndex = 6
 	}, topBar)
-	corner(minButton, 6)
+	corner(minButton, 7)
 	minButton.MouseEnter:Connect(function()
 		TweenService:Create(minButton, Fast, {
-			BackgroundTransparency = 0.8,
+			BackgroundTransparency = 0.78,
 			TextColor3 = Theme.AccentSoft
 		}):Play()
 	end)
@@ -865,19 +865,19 @@ function Lib:CreateWindow(config)
 
 	local closeButton = make("TextButton", {
 		Name = "CloseButton",
-		Position = UDim2.new(1, -38, 0.5, -13),
-		Size = UDim2.fromOffset(26, 26),
+		Position = UDim2.new(1, -38, 0.5, -14),
+		Size = UDim2.fromOffset(28, 28),
 		BackgroundColor3 = Theme.Danger,
 		BackgroundTransparency = 1,
 		Text = "×",
 		TextColor3 = Theme.TextDim,
 		Font = Enum.Font.GothamBold,
-		TextSize = 16,
+		TextSize = 18,
 		AutoButtonColor = false,
 		BorderSizePixel = 0,
 		ZIndex = 6
 	}, topBar)
-	corner(closeButton, 6)
+	corner(closeButton, 7)
 	closeButton.MouseEnter:Connect(function()
 		TweenService:Create(closeButton, Fast, {
 			BackgroundTransparency = 0.82,
@@ -895,7 +895,7 @@ function Lib:CreateWindow(config)
 	local dragArea = make("Frame", {
 		Name = "DragArea",
 		Position = UDim2.fromOffset(0, 0),
-		Size = UDim2.new(1, -100, 0, 52),
+		Size = UDim2.new(1, -100, 0, 55),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		Active = true,
@@ -906,8 +906,8 @@ function Lib:CreateWindow(config)
 
 	local sidebar = make("Frame", {
 		Name = "Sidebar",
-		Position = UDim2.new(0, 0, 0, 52),
-		Size = UDim2.new(0, 156, 1, -52),
+		Position = UDim2.new(0, 0, 0, 55),
+		Size = UDim2.new(0, 156, 1, -55),
 		BackgroundColor3 = Theme.Surface,
 		BorderSizePixel = 0
 	}, root)
@@ -917,7 +917,7 @@ function Lib:CreateWindow(config)
 		Position = UDim2.new(1, -1, 0, 0),
 		Size = UDim2.new(0, 1, 1, 0),
 		BackgroundColor3 = Theme.Stroke,
-		BackgroundTransparency = 0.4,
+		BackgroundTransparency = 0.25,
 		BorderSizePixel = 0
 	}, sidebar)
 
@@ -929,7 +929,7 @@ function Lib:CreateWindow(config)
 		BorderSizePixel = 0
 	}, sidebar)
 	make("UIListLayout", {
-		Padding = UDim.new(0, 6),
+		Padding = UDim.new(0, 8),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		HorizontalAlignment = Enum.HorizontalAlignment.Left,
 		VerticalAlignment = Enum.VerticalAlignment.Top
@@ -942,11 +942,11 @@ function Lib:CreateWindow(config)
 		Position = UDim2.new(0, 8, 1, -10),
 		Size = UDim2.new(1, -16, 0, 58),
 		BackgroundColor3 = Theme.SurfaceAlt,
-		BackgroundTransparency = 0.5,
+		BackgroundTransparency = 0.45,
 		BorderSizePixel = 0
 	}, sidebar)
 	corner(profileCard, 10)
-	stroke(profileCard, Theme.Stroke, 0.55)
+	stroke(profileCard, Theme.Stroke, 0.45)
 	self._profileCard = profileCard
 
 	local avatar = make("ImageLabel", {
@@ -962,7 +962,7 @@ function Lib:CreateWindow(config)
 		ClipsDescendants = true
 	}, profileCard)
 	corner(avatar, 20)
-	stroke(avatar, Theme.Stroke, 0.55)
+	stroke(avatar, Theme.Stroke, 0.5)
 	self._avatar = avatar
 
 	local profileName = make("TextLabel", {
@@ -986,7 +986,7 @@ function Lib:CreateWindow(config)
 		Size = UDim2.new(1, -68, 0, 16),
 		BackgroundTransparency = 1,
 		Text = "@" .. LocalPlayer.Name,
-		Font = Enum.Font.Gotham,
+		Font = Enum.Font.GothamMedium,
 		TextSize = 10,
 		TextColor3 = Theme.AccentSoft,
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -997,8 +997,8 @@ function Lib:CreateWindow(config)
 
 	local content = make("Frame", {
 		Name = "Content",
-		Position = UDim2.new(0, 157, 0, 52),
-		Size = UDim2.new(1, -157, 1, -52),
+		Position = UDim2.new(0, 157, 0, 55),
+		Size = UDim2.new(1, -157, 1, -55),
 		BackgroundColor3 = Theme.Bg,
 		BorderSizePixel = 0,
 		ClipsDescendants = true
@@ -1083,11 +1083,11 @@ function Lib:CreateSection(parent, text)
 	local section, page = prepareControl(parent, 26, "Frame")
 	make("TextLabel", {
 		Name = "Title",
-		Size = UDim2.new(1, 0, 0, 22),
+		Size = UDim2.new(1, 0, 0, 24),
 		BackgroundTransparency = 1,
-		Text = string.upper(tostring(text or "Seção")),
+		Text = tostring(text or "Seção"),
 		Font = Enum.Font.GothamBold,
-		TextSize = 11,
+		TextSize = 13,
 		TextColor3 = Theme.TextDim,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
@@ -1098,7 +1098,7 @@ function Lib:CreateSection(parent, text)
 		Position = UDim2.new(0, 0, 1, -1),
 		Size = UDim2.new(1, 0, 0, 1),
 		BackgroundColor3 = Theme.Stroke,
-		BackgroundTransparency = 0.4,
+		BackgroundTransparency = 0.25,
 		BorderSizePixel = 0
 	}, section)
 	refreshPage(page)
@@ -1123,7 +1123,7 @@ end
 function Lib:CreateDivider(parent)
 	local divider, page = prepareControl(parent, 1, "Frame")
 	divider.BackgroundColor3 = Theme.Stroke
-	divider.BackgroundTransparency = 0.4
+	divider.BackgroundTransparency = 0.25
 	refreshPage(page)
 	return divider
 end
@@ -1131,25 +1131,25 @@ end
 function Lib:CreateButton(parent, text, callback)
 	local button, page = prepareControl(parent, 38, "TextButton")
 	button.BackgroundColor3 = Theme.SurfaceAlt
-	button.BackgroundTransparency = 0.2
+	button.BackgroundTransparency = 0.25
 	button.Text = tostring(text or "Botão")
 	button.Font = Enum.Font.GothamMedium
-	button.TextSize = 13
+	button.TextSize = 14
 	button.TextColor3 = Theme.Text
 	button.AutoButtonColor = false
-	corner(button, 8)
-	stroke(button, Theme.Stroke, 0.55)
+	corner(button, 9)
+	stroke(button, Theme.Stroke, 0.4)
 	button.MouseEnter:Connect(function()
 		TweenService:Create(button, Fast, {
 			BackgroundColor3 = Theme.SurfaceHi,
-			BackgroundTransparency = 0.05,
+			BackgroundTransparency = 0.12,
 			TextColor3 = Theme.AccentSoft
 		}):Play()
 	end)
 	button.MouseLeave:Connect(function()
 		TweenService:Create(button, Fast, {
 			BackgroundColor3 = Theme.SurfaceAlt,
-			BackgroundTransparency = 0.2,
+			BackgroundTransparency = 0.25,
 			TextColor3 = Theme.Text
 		}):Play()
 	end)
@@ -1176,7 +1176,7 @@ function Lib:CreateToggle(parent, text, default, callback)
 	row.Text = ""
 	row.AutoButtonColor = false
 	row.BorderSizePixel = 0
-	corner(row, 8)
+	corner(row, 9)
 
 	local icon
 	if config and config.Icon then
@@ -1228,7 +1228,7 @@ function Lib:CreateToggle(parent, text, default, callback)
 		BorderSizePixel = 0
 	}, row)
 	corner(track, 11)
-	stroke(track, Theme.Stroke, 0.6)
+	stroke(track, Theme.Stroke, 0.5)
 
 	local knob = make("Frame", {
 		Name = "Knob",
@@ -1259,7 +1259,7 @@ function Lib:CreateToggle(parent, text, default, callback)
 		if not disabled then
 			TweenService:Create(row, Fast, {
 				BackgroundColor3 = Theme.SurfaceAlt,
-				BackgroundTransparency = 0.7
+				BackgroundTransparency = 0.82
 			}):Play()
 		end
 	end)
@@ -1308,14 +1308,14 @@ function Lib:CreateCheckbox(parent, text, default, callback)
 		BorderSizePixel = 0
 	}, row)
 	corner(box, 5)
-	stroke(box, Theme.Stroke, 0.5)
+	stroke(box, Theme.Stroke, 0.35)
 
 	local mark = make("TextLabel", {
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		Text = "✓",
 		TextColor3 = Theme.Text,
-		TextSize = 13,
+		TextSize = 14,
 		Font = Enum.Font.GothamBold,
 		Visible = default == true
 	}, box)
@@ -1372,13 +1372,13 @@ function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callba
 	local track = make("TextButton", {
 		Name = "Track",
 		Position = UDim2.fromOffset(0, 32),
-		Size = UDim2.new(1, 0, 0, 6),
+		Size = UDim2.new(1, 0, 0, 8),
 		BackgroundColor3 = Theme.SurfaceHi,
 		Text = "",
 		AutoButtonColor = false,
 		BorderSizePixel = 0
 	}, frame)
-	corner(track, 3)
+	corner(track, 4)
 	local fill = make("Frame", {
 		Name = "Fill",
 		Size = UDim2.new(0, 0, 1, 0),
@@ -1386,7 +1386,7 @@ function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callba
 		BorderSizePixel = 0,
 		Active = false
 	}, track)
-	corner(fill, 3)
+	corner(fill, 4)
 	local knob = make("Frame", {
 		Name = "Knob",
 		Position = UDim2.new(0, 0, 0.5, 0),
@@ -1397,7 +1397,7 @@ function Lib:CreateSlider(parent, text, minValue, maxValue, defaultValue, callba
 		Active = false
 	}, track)
 	corner(knob, 7)
-	stroke(knob, Theme.Accent, 0.2)
+	stroke(knob, Theme.Stroke, 0.4)
 
 	local minNumber = tonumber(minValue) or 0
 	local maxNumber = tonumber(maxValue) or 100
@@ -1485,20 +1485,20 @@ function Lib:CreateTextBox(parent, text, placeholder, defaultValue, callback)
 		Position = UDim2.new(0.42, 0, 0, 7),
 		Size = UDim2.new(0.58, 0, 0, 28),
 		BackgroundColor3 = Theme.SurfaceHi,
-		BackgroundTransparency = 0.15,
+		BackgroundTransparency = 0.08,
 		BorderSizePixel = 0,
 		Text = tostring(defaultValue or ""),
 		PlaceholderText = tostring(placeholder or "Digite"),
 		PlaceholderColor3 = Theme.TextDim,
 		Font = Enum.Font.Gotham,
-		TextSize = 12,
+		TextSize = 13,
 		TextColor3 = Theme.Text,
 		ClearTextOnFocus = false,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd
 	}, frame)
-	corner(box, 7)
-	stroke(box, Theme.Stroke, 0.5)
+	corner(box, 8)
+	stroke(box, Theme.Stroke, 0.4)
 	make("UIPadding", {
 		PaddingLeft = UDim.new(0, 8),
 		PaddingRight = UDim.new(0, 8)
@@ -1547,13 +1547,13 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 		Name = "Dropdown",
 		Size = UDim2.new(1, 0, 0, 42),
 		BackgroundColor3 = Theme.SurfaceAlt,
-		BackgroundTransparency = 0.2,
+		BackgroundTransparency = 0.25,
 		Text = "",
 		AutoButtonColor = false,
 		BorderSizePixel = 0
 	}, control)
-	corner(row, 8)
-	stroke(row, Theme.Stroke, 0.5)
+	corner(row, 9)
+	stroke(row, Theme.Stroke, 0.4)
 
 	make("TextLabel", {
 		Position = UDim2.fromOffset(12, 0),
@@ -1599,8 +1599,8 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 		Visible = false,
 		ZIndex = 20
 	}, control)
-	corner(list, 8)
-	stroke(list, Theme.Stroke, 0.45)
+	corner(list, 9)
+	stroke(list, Theme.Stroke, 0.35)
 
 	local searchBox
 	if searchable then
@@ -1673,7 +1673,7 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 				Name = "Option_" .. index,
 				Size = UDim2.new(1, -4, 0, 30),
 				BackgroundColor3 = isSelected and Theme.Accent or Theme.Surface,
-				BackgroundTransparency = isSelected and 0.85 or 1,
+				BackgroundTransparency = isSelected and 0.82 or 1,
 				BorderSizePixel = 0,
 				Text = tostring(option),
 				Font = Enum.Font.Gotham,
@@ -1718,7 +1718,7 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 				local active = multi and selected[option] or selected == option
 				TweenService:Create(optionButton, Fast, {
 					BackgroundColor3 = active and Theme.Accent or Theme.Surface,
-					BackgroundTransparency = active and 0.85 or 1
+					BackgroundTransparency = active and 0.82 or 1
 				}):Play()
 			end)
 
@@ -1804,7 +1804,7 @@ function Lib:CreateDropdown(parent, text, options, default, callback)
 		SetDisabled = function(value)
 			disabled = value
 			row.Active = not value
-			row.BackgroundTransparency = value and 0.65 or 0.2
+			row.BackgroundTransparency = value and 0.65 or 0.25
 		end
 	})
 
@@ -1853,7 +1853,7 @@ function Lib:CreateKeybind(parent, text, defaultKey, callback)
 		AutoButtonColor = false
 	}, frame)
 	corner(button, 7)
-	stroke(button, Theme.Stroke, 0.5)
+	stroke(button, Theme.Stroke, 0.4)
 
 	local currentKey = defaultKey or Enum.KeyCode.RightShift
 	local listening = false
@@ -1937,7 +1937,7 @@ function Lib:CreateColorPicker(parent, text, default, callback)
 		AutoButtonColor = false
 	}, frame)
 	corner(button, 7)
-	stroke(button, Theme.Stroke, 0.5)
+	stroke(button, Theme.Stroke, 0.35)
 
 	local popup = make("Frame", {
 		Position = UDim2.new(1, -190, 1, 5),
@@ -1948,8 +1948,8 @@ function Lib:CreateColorPicker(parent, text, default, callback)
 		ClipsDescendants = true,
 		ZIndex = 30
 	}, frame)
-	corner(popup, 8)
-	stroke(popup, Theme.Stroke, 0.45)
+	corner(popup, 9)
+	stroke(popup, Theme.Stroke, 0.35)
 
 	local function updateColor(fire)
 		color = Color3.fromHSV(hue, saturation, value)
@@ -1973,14 +1973,14 @@ function Lib:CreateColorPicker(parent, text, default, callback)
 
 		local track = make("TextButton", {
 			Position = UDim2.fromOffset(52, y + 5),
-			Size = UDim2.new(1, -62, 0, 8),
+			Size = UDim2.new(1, -62, 0, 10),
 			BackgroundColor3 = Theme.SurfaceHi,
 			BorderSizePixel = 0,
 			Text = "",
 			AutoButtonColor = false,
 			ZIndex = 31
 		}, popup)
-		corner(track, 4)
+		corner(track, 5)
 
 		local fill = make("Frame", {
 			Size = UDim2.new(initial, 0, 1, 0),
@@ -1988,7 +1988,7 @@ function Lib:CreateColorPicker(parent, text, default, callback)
 			BorderSizePixel = 0,
 			ZIndex = 32
 		}, track)
-		corner(fill, 4)
+		corner(fill, 5)
 
 		local dragging = false
 		local moveConnection, endConnection
@@ -2151,12 +2151,12 @@ function Lib:Notify(title, text, duration)
 		ClipsDescendants = true,
 		LayoutOrder = Lib._notifyCount
 	}, stack)
-	corner(card, 10)
-	stroke(card, Theme.Stroke, 0.35)
+	corner(card, 12)
+	stroke(card, Theme.Stroke, 0.3)
 	local scale = make("UIScale", { Name = "Scale", Scale = 0.96 }, card)
 	make("Frame", {
 		Name = "Accent",
-		Size = UDim2.new(0, 3, 1, 0),
+		Size = UDim2.new(0, 4, 1, 0),
 		BackgroundColor3 = Theme.Accent,
 		BorderSizePixel = 0
 	}, card)
@@ -2189,8 +2189,8 @@ function Lib:Notify(title, text, duration)
 	}, card)
 	local progressBackground = make("Frame", {
 		Name = "Progress",
-		Position = UDim2.new(0, 0, 1, -2),
-		Size = UDim2.new(1, 0, 0, 2),
+		Position = UDim2.new(0, 0, 1, -3),
+		Size = UDim2.new(1, 0, 0, 3),
 		BackgroundColor3 = Theme.SurfaceHi,
 		BorderSizePixel = 0
 	}, card)
