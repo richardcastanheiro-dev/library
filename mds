@@ -1,4 +1,3 @@
-
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -203,12 +202,17 @@ function Lib:GetIcon(name)
 	if not self.Icons or type(name) ~= "string" then
 		return nil
 	end
+
 	local success, icon = pcall(function()
 		return self.Icons.GetAsset(name)
 	end)
-	if success then
-		return icon
+
+	if success and type(icon) == "table" then
+		if icon.Url or (icon.FontFace and icon.Text) then
+			return icon
+		end
 	end
+
 	return nil
 end
 
@@ -643,7 +647,11 @@ function Window:SelectTab(target)
 		end
 		local tabIcon = item.Button:FindFirstChild("TabIcon")
 		if tabIcon then
-			tabIcon.ImageColor3 = active and Theme.AccentSoft or Theme.TextDim
+			if tabIcon:IsA("ImageLabel") then
+				tabIcon.ImageColor3 = active and Theme.AccentSoft or Theme.TextDim
+			elseif tabIcon:IsA("TextLabel") then
+				tabIcon.TextColor3 = active and Theme.AccentSoft or Theme.TextDim
+			end
 		end
 	end
 	self._activeTab = entry.Page
@@ -734,20 +742,43 @@ function Window:CreateTab(name, iconName)
 
 	if iconName then
 		local icon = Lib:GetCustomIcon(iconName)
-		if icon then
-			make("ImageLabel", {
-				Name = "TabIcon",
-				AnchorPoint = Vector2.new(0, 0.5),
-				Position = UDim2.new(0, 10, 0.5, 0),
-				Size = UDim2.fromOffset(18, 18),
-				BackgroundTransparency = 1,
-				ScaleType = Enum.ScaleType.Fit,
-				Image = icon.Url or "",
-				ImageColor3 = Theme.TextDim,
-				ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
-				ImageRectSize = icon.ImageRectSize or Vector2.zero
-			}, tabButton)
+		local rendered = false
 
+		if icon then
+			if icon.FontFace and icon.Text then
+				make("TextLabel", {
+					Name = "TabIcon",
+					AnchorPoint = Vector2.new(0, 0.5),
+					Position = UDim2.new(0, 10, 0.5, 0),
+					Size = UDim2.fromOffset(18, 18),
+					BackgroundTransparency = 1,
+					BorderSizePixel = 0,
+					FontFace = icon.FontFace,
+					Text = icon.Text,
+					TextColor3 = Theme.TextDim,
+					TextSize = 16,
+					TextXAlignment = Enum.TextXAlignment.Center,
+					TextYAlignment = Enum.TextYAlignment.Center
+				}, tabButton)
+				rendered = true
+			elseif icon.Url and icon.Url ~= "" then
+				make("ImageLabel", {
+					Name = "TabIcon",
+					AnchorPoint = Vector2.new(0, 0.5),
+					Position = UDim2.new(0, 10, 0.5, 0),
+					Size = UDim2.fromOffset(18, 18),
+					BackgroundTransparency = 1,
+					ScaleType = Enum.ScaleType.Fit,
+					Image = icon.Url,
+					ImageColor3 = Theme.TextDim,
+					ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
+					ImageRectSize = icon.ImageRectSize or Vector2.zero
+				}, tabButton)
+				rendered = true
+			end
+		end
+
+		if rendered then
 			label.Position = UDim2.fromOffset(36, 0)
 			label.Size = UDim2.new(1, -42, 1, 0)
 		end
@@ -762,6 +793,14 @@ function Window:CreateTab(name, iconName)
 		Active = false
 	}
 	table.insert(self._tabs, entry)
+
+	if self._tabLayout and self._tabList then
+		task.defer(function()
+			if self._tabList and self._tabList.Parent then
+				self._tabList.CanvasSize = UDim2.fromOffset(0, self._tabLayout.AbsoluteContentSize.Y + 8)
+			end
+		end)
+	end
 
 	tabButton.MouseEnter:Connect(function()
 		if not entry.Active then
@@ -1100,20 +1139,40 @@ function Lib:CreateWindow(config)
 		BorderSizePixel = 0
 	}, sidebar)
 
-	local tabList = make("Frame", {
+	local tabList = make("ScrollingFrame", {
 		Name = "TabList",
 		Position = UDim2.fromOffset(8, 10),
-		Size = UDim2.new(1, -16, 1, -100),
+		Size = UDim2.new(1, -16, 1, -110),
 		BackgroundTransparency = 1,
-		BorderSizePixel = 0
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		CanvasSize = UDim2.fromOffset(0, 0),
+		AutomaticCanvasSize = Enum.AutomaticSize.None,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		ScrollBarThickness = 3,
+		ScrollBarImageColor3 = Theme.Accent,
+		ScrollBarImageTransparency = 0.25,
+		ScrollingEnabled = true,
+		ElasticBehavior = Enum.ElasticBehavior.Never
 	}, sidebar)
-	make("UIListLayout", {
+
+	local tabLayout = make("UIListLayout", {
 		Padding = UDim.new(0, 8),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		HorizontalAlignment = Enum.HorizontalAlignment.Left,
 		VerticalAlignment = Enum.VerticalAlignment.Top
 	}, tabList)
+
+	tabLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		if tabList and tabList.Parent then
+			tabList.CanvasSize = UDim2.fromOffset(0, tabLayout.AbsoluteContentSize.Y + 8)
+		end
+	end)
+
+	tabList.CanvasSize = UDim2.fromOffset(0, tabLayout.AbsoluteContentSize.Y + 8)
+
 	self._tabList = tabList
+	self._tabLayout = tabLayout
 
 	local profileCard = make("Frame", {
 		Name = "ProfileCard",
@@ -1273,12 +1332,63 @@ function Lib:SetDisabled(control, disabled)
 end
 
 function Lib:CreateSection(parent, text)
+	local config = type(text) == "table" and text or {
+		name = text
+	}
+
+	local name = config.name or config.Name or "Seção"
+	local iconName = config.icon or config.Icon
+
 	local section, page = prepareControl(parent, 26, "Frame")
+
+	local offset = 0
+
+	if iconName then
+		local icon = Lib:GetCustomIcon(iconName)
+
+		if icon then
+			if icon.FontFace and icon.Text then
+				make("TextLabel", {
+					Name = "SectionIcon",
+					Position = UDim2.fromOffset(0, 3),
+					Size = UDim2.fromOffset(18, 18),
+					BackgroundTransparency = 1,
+					BorderSizePixel = 0,
+					FontFace = icon.FontFace,
+					Text = icon.Text,
+					TextColor3 = Theme.AccentSoft,
+					TextSize = 16,
+					TextXAlignment = Enum.TextXAlignment.Center,
+					TextYAlignment = Enum.TextYAlignment.Center
+				}, section)
+
+				offset = 24
+			elseif icon.Url and icon.Url ~= "" then
+				make("ImageLabel", {
+					Name = "SectionIcon",
+					Position = UDim2.fromOffset(0, 3),
+					Size = UDim2.fromOffset(18, 18),
+					BackgroundTransparency = 1,
+					BorderSizePixel = 0,
+					Image = icon.Url,
+					ImageColor3 = Theme.AccentSoft,
+					ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
+					ImageRectSize = icon.ImageRectSize or Vector2.zero,
+					ScaleType = Enum.ScaleType.Fit,
+					Visible = true
+				}, section)
+
+				offset = 24
+			end
+		end
+	end
+
 	make("TextLabel", {
 		Name = "Title",
-		Size = UDim2.new(1, 0, 0, 24),
+		Position = UDim2.fromOffset(offset, 0),
+		Size = UDim2.new(1, -offset, 0, 24),
 		BackgroundTransparency = 1,
-		Text = tostring(text or "Seção"),
+		Text = tostring(name),
 		Font = Enum.Font.GothamBold,
 		TextSize = 13,
 		TextColor3 = Theme.AccentSoft,
@@ -1286,6 +1396,7 @@ function Lib:CreateSection(parent, text)
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		BorderSizePixel = 0
 	}, section)
+
 	make("Frame", {
 		Name = "Line",
 		Position = UDim2.new(0, 0, 1, -1),
@@ -1294,6 +1405,7 @@ function Lib:CreateSection(parent, text)
 		BackgroundTransparency = 0.25,
 		BorderSizePixel = 0
 	}, section)
+
 	refreshPage(page)
 	return section
 end
@@ -2732,5 +2844,157 @@ function Lib.new(a, b)
 	end
 	return Lib:CreateWindow(a)
 end
+
+local HttpService = game:GetService("HttpService")
+
+Lib.ConfigFolder = "MikuLib"
+Lib.Configs = {}
+Lib.AutoSave = false
+Lib.AutoSaveInterval = 10
+Lib.AutoSaveName = "Default"
+
+local function getConfigPath(name)
+	return Lib.ConfigFolder .. "/" .. tostring(name) .. ".json"
+end
+
+function Lib:RegisterConfigValue(name, getter, setter)
+	if type(name) ~= "string" then
+		return false
+	end
+
+	Lib.Configs[name] = {
+		Get = getter,
+		Set = setter
+	}
+
+	return true
+end
+
+function Lib:SaveConfig(name)
+	name = tostring(name or "Default")
+
+	if not isfolder(self.ConfigFolder) then
+		makefolder(self.ConfigFolder)
+	end
+
+	local data = {}
+
+	for key, control in pairs(self.Configs) do
+		if type(control.Get) == "function" then
+			local success, value = pcall(control.Get)
+
+			if success then
+				data[key] = value
+			end
+		end
+	end
+
+	local success, encoded = pcall(function()
+		return HttpService:JSONEncode(data)
+	end)
+
+	if not success then
+		return false
+	end
+
+	return pcall(function()
+		writefile(getConfigPath(name), encoded)
+	end)
+end
+
+function Lib:LoadConfig(name)
+	local path = getConfigPath(name or "Default")
+
+	if not isfile(path) then
+		return false
+	end
+
+	local success, data = pcall(function()
+		return HttpService:JSONDecode(readfile(path))
+	end)
+
+	if not success or type(data) ~= "table" then
+		return false
+	end
+
+	for key, value in pairs(data) do
+		local control = self.Configs[key]
+
+		if control and type(control.Set) == "function" then
+			pcall(control.Set, value)
+		end
+	end
+
+	return true
+end
+
+function Lib:DeleteConfig(name)
+	local path = getConfigPath(name or "Default")
+
+	if isfile(path) then
+		return pcall(delfile, path)
+	end
+
+	return false
+end
+
+function Lib:GetConfigs()
+	if not isfolder(self.ConfigFolder) then
+		makefolder(self.ConfigFolder)
+	end
+
+	local configs = {}
+
+	for _, path in ipairs(listfiles(self.ConfigFolder)) do
+		local configName = path:match("([^/\\]+)%.json$")
+
+		if configName then
+			table.insert(configs, configName)
+		end
+	end
+
+	return configs
+end
+
+function Lib:SetAutoSave(enabled, interval)
+	self.AutoSave = enabled == true
+
+	if interval then
+		self.AutoSaveInterval = math.max(3, tonumber(interval) or 10)
+	end
+end
+
+task.spawn(function()
+	while true do
+		task.wait(Lib.AutoSaveInterval)
+
+		if Lib.AutoSave then
+			pcall(function()
+				Lib:SaveConfig(Lib.AutoSaveName)
+			end)
+		end
+	end
+end)
+
+Lib.AutoSave = false
+Lib.AutoSaveInterval = 10
+Lib.AutoSaveName = "Default"
+
+function Lib:SetAutoSave(enabled, interval)
+	self.AutoSave = enabled == true
+	self.AutoSaveInterval = math.max(3, tonumber(interval) or 10)
+end
+
+task.spawn(function()
+	while true do
+		task.wait(Lib.AutoSaveInterval)
+
+		if Lib.AutoSave then
+			pcall(function()
+				Lib:SaveConfig(Lib.AutoSaveName)
+			end)
+		end
+	end
+end)
 
 return Lib
