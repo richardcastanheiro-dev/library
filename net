@@ -1361,6 +1361,59 @@ function Lib:CreateSection(parent, text)
     refreshPage(page)
     return section
 end
+function Lib:CreateLabel(parent, text)
+	local label = Instance.new("TextLabel")
+	label.Name = "Label"
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.new(1, 0, 0, 18)
+	label.AutomaticSize = Enum.AutomaticSize.Y
+	label.Font = Enum.Font.Gotham
+	label.Text = tostring(text or "")
+	label.TextSize = 13
+	label.TextWrapped = true
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.TextYAlignment = Enum.TextYAlignment.Top
+	label.TextColor3 = Theme.TextDim
+	label.Parent = parent
+	return label
+end
+
+function Lib:CreateText(parent, cfg)
+	local title, body
+	if type(cfg) == "table" then
+		title = tostring(cfg.name or cfg.Name or cfg.Title or "")
+		body = tostring(cfg.text or cfg.Text or cfg.Content or "")
+	else
+		title, body = "", tostring(cfg or "")
+	end
+
+	local frame = Instance.new("Frame")
+	frame.Name = "Text"
+	frame.BackgroundTransparency = 1
+	frame.Size = UDim2.new(1, 0, 0, 0)
+	frame.AutomaticSize = Enum.AutomaticSize.Y
+	frame.Parent = parent
+
+	local list = Instance.new("UIListLayout")
+	list.Padding = UDim.new(0, 2)
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Parent = frame
+
+	if title ~= "" then
+		local t = Lib:CreateLabel(frame, title)
+		t.Font = Enum.Font.GothamBold
+		t.TextSize = 14
+		t.TextColor3 = Theme.Text
+		t.LayoutOrder = 1
+	end
+
+	if body ~= "" then
+		local b = Lib:CreateLabel(frame, body)
+		b.LayoutOrder = 2
+	end
+
+	return frame
+end
 
 function Lib:CreateLabel(parent, text)
 	local label, page = prepareControl(parent, 20, "TextLabel")
