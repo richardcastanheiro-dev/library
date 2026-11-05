@@ -1235,67 +1235,64 @@ function Lib:ResolveIcon(name)
 end
 
 function Lib:CreateSection(parent, text)
-	local config = type(text) == "table" and text or {
-		name = text
-	}
-
-	local name = config.name or config.Name or "Seção"
-	local iconName = config.icon or config.Icon
+	local config = type(text) == "table" and text or {name = text}
+	local name = tostring(config.name or config.Name or "Section")
+	local icon = config.icon or config.Icon
 
 	local section, page = prepareControl(parent, 30, "Frame")
 
-	section.Name = "Section"
+	if not section then
+		return nil
+	end
+
+	section.Name = "MikuSection"
 	section.BackgroundTransparency = 1
 	section.BorderSizePixel = 0
-	section.Size = UDim2.new(1, 0, 0, 30)
+	section.ClipsDescendants = false
 
+	local row = Instance.new("Frame")
+	row.Name = "Row"
+	row.BackgroundTransparency = 1
+	row.Size = UDim2.new(1, 0, 0, 24)
+	row.Parent = section
+
+	local iconData = icon and Lib:GetCustomIcon(icon) or nil
 	local offset = 0
 
-	if iconName then
-		local icon = Lib:GetCustomIcon(iconName)
+	if iconData then
+		local iconObject = Lib:RenderIcon(row, iconData, {
+			Size = UDim2.fromOffset(16, 16),
+			Position = UDim2.fromOffset(0, 4)
+		})
 
-		if icon and icon.Url then
-			make("ImageLabel", {
-				Name = "SectionIcon",
-				Position = UDim2.fromOffset(0, 5),
-				Size = UDim2.fromOffset(16, 16),
-				BackgroundTransparency = 1,
-				Image = icon.Url,
-				ImageColor3 = Theme.AccentSoft,
-				ImageRectOffset = icon.ImageRectOffset or Vector2.zero,
-				ImageRectSize = icon.ImageRectSize or Vector2.zero,
-				ScaleType = Enum.ScaleType.Fit
-			}, section)
-
-			offset = 23
+		if iconObject then
+			offset = 22
 		end
 	end
 
-	make("TextLabel", {
-		Name = "Title",
-		Position = UDim2.fromOffset(offset, 0),
-		Size = UDim2.new(1, -offset, 0, 24),
-		BackgroundTransparency = 1,
-		BorderSizePixel = 0,
-		Text = tostring(name),
-		Font = Enum.Font.GothamBold,
-		TextSize = 13,
-		TextColor3 = Theme.AccentSoft,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Center,
-		TextTruncate = Enum.TextTruncate.AtEnd
-	}, section)
+	local title = Instance.new("TextLabel")
+	title.Name = "Title"
+	title.BackgroundTransparency = 1
+	title.Position = UDim2.fromOffset(offset, 0)
+	title.Size = UDim2.new(1, -offset, 1, 0)
+	title.Font = Enum.Font.GothamBold
+	title.TextSize = 13
+	title.Text = name
+	title.TextColor3 = Color3.fromRGB(180, 160, 255)
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.Parent = row
 
-	make("Frame", {
-		Name = "Line",
-		Position = UDim2.new(0, 0, 1, -1),
-		Size = UDim2.new(1, 0, 0, 1),
-		BackgroundColor3 = Theme.Stroke,
-		BackgroundTransparency = 0.25,
-		BorderSizePixel = 0
-	}, section)
+	local line = Instance.new("Frame")
+	line.Name = "Line"
+	line.BorderSizePixel = 0
+	line.BackgroundColor3 = Color3.fromRGB(55, 55, 70)
+	line.Position = UDim2.new(0, 0, 1, -1)
+	line.Size = UDim2.new(1, 0, 0, 1)
+	line.Parent = section
 
-	refreshPage(page)
+	if page then
+		refreshPage(page)
+	end
 
 	return section
 end
